@@ -1,0 +1,14 @@
+^docs$
+^plot_network\.R$
+^data$
+^network_.*\.png$
+^.*\.png$
+^LICENSE$
+^\.DS_Store$
+^\.git$
+^\.github$
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.claude$
+^figures$
+^dev$

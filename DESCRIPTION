@@ -1,0 +1,32 @@
+Package: anansi
+Type: Package
+Title: Consensus and Discrepancy Visualization for Sets of Phylogenetic Networks
+Version: 0.0.0.9000
+Authors@R:
+    person("Nicolae", "Sapoval", email = "nick.sapoval@gmail.com",
+           role = c("aut", "cre"))
+Description: Tools to visualize sets of explicit reticulate phylogenetic
+    networks (extended Newick / 'evonet') over a fixed taxon set in a
+    DensiTree-style consensus/discrepancy view. Networks are overlaid on a
+    shared tip ordering so that agreement appears dense and conflict appears
+    diffuse, with backbone-tree and reticulation-edge signals shown together.
+    Supports restricting all networks to a subset of taxa. Built on 'ape',
+    'tanggle' and 'ggtree'.
+License: AGPL-3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1)
+Imports:
+    ape,
+    tanggle,
+    ggtree,
+    ggplot2,
+    grid,
+    rlang,
+    stats,
+    utils
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
