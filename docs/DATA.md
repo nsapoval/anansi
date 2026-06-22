@@ -69,11 +69,14 @@ minor ≈ 1.0). Example hybrid pair (from `d10k_x100_results.csv`, row 1):
 - Networks may have multiple hybrids (`#H1..#H3` in this data); the parser handles
   arbitrary `k`.
 
-## Known parsing issues (`ape::read.evonet`)
+## Parsing (native parser; `read.evonet` limitations resolved)
 
-Validating *every* network (not just the first row) surfaced two real
-`read.evonet` limitations. anansi loads such files without crashing, flags the
-affected networks, and lets you filter them.
+anansi reads extended Newick with its **own** recursive-descent parser
+(`R/enewick.R`), which parses **all** networks in every sample file correctly
+(`taxa_ok = 60/60`, `460/460`, `230/230`, `230/230`). `ape::read.evonet` is kept
+only as a fallback. The two `read.evonet` limitations below — found by validating
+*every* network, not just the first row — are what motivated the native parser
+(W1); they no longer affect anansi.
 
 1. **Phantom tips on nested/stacked reticulations.** When a hybrid placeholder is
    nested inside another hybrid's defining clade (level-k structures), `read.evonet`
@@ -86,17 +89,21 @@ affected networks, and lets you filter them.
    - `d10k_mostlen_inferred_networks.csv`: 52 / 460
    - `Lacerta_agilis_*` and `Zootoca_vivipara_*`: **0** (fully clean; ≤2 reticulations)
 
-   Keep only the consistent networks with `ns[ns$taxa_ok]`.
+   The native parser instead **collapses** these structures: a "ghost" donor
+   (an unlabeled node whose children were all placeholders) is removed and its
+   reticulation re-pointed to its parent; a "leaf" hybrid (a `#Hk` node whose
+   subtree was all placeholders, i.e. no sampled descendants) is removed and its
+   reticulation dropped (it is invisible over the taxon set). The 15-taxon set is
+   preserved.
 
 2. **Zero-reticulation networks fail `read.evonet`.** Plain trees (no `#H`) make
    `read.evonet` error/return a degenerate object (3 such networks in
-   `d10k_mostlen`). `parse_network()` falls back to `ape::read.tree()` and attaches
-   an empty reticulation matrix, so these parse cleanly.
+   `d10k_mostlen`). The native parser handles them directly; the legacy fallback
+   also routes them through `ape::read.tree()`.
 
-A robust nested-reticulation parser (custom Rich-Newick parser, `ggret::read_enewick`,
-or a `read.evonet` repair pass) is a **tracked roadmap item** — see
-[`WORKPLAN.md`](WORKPLAN.md). Until then, `Lacerta`/`Zootoca` work end-to-end with no
-flagged networks, and the `d10k` files work on their `taxa_ok` subset.
+The native parser (`enewick_to_anansi`, W1) handles clean, nested, stacked, and
+hybrid-free networks; `taxa_ok` flagging remains as a safety net for genuinely
+divergent inputs.
 
 ## Provenance
 

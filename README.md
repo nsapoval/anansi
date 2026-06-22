@@ -14,11 +14,12 @@ It builds on [`ape`](https://cran.r-project.org/package=ape),
 [`ggtree`](https://bioconductor.org/packages/ggtree); output is a composable `ggplot`
 object. The name nods to *Anansi* the spider — fitting for webs of reticulate edges.
 
-> **Status: working tool (Phases 0-5 done).** Reading network sets, the shared
+> **Status: complete (phases 0-6 + W1).** Reading network sets (via a native
+> extended-Newick parser that handles nested/stacked reticulations), the shared
 > layout engine, the `densinet()` consensus/discrepancy overlay, consensus/support
-> encoding, and reticulation-aware taxon subsetting all work. Next up: polish
-> (phylogram mode, vignette) and a robust nested-reticulation parser. See
-> [`docs/WORKPLAN.md`](docs/WORKPLAN.md) for the roadmap and live feature tracker.
+> encoding, reticulation-aware taxon subsetting, and phylogram/jitter polish all
+> work; all sample files parse 100%. See [`docs/WORKPLAN.md`](docs/WORKPLAN.md) for
+> the feature tracker.
 
 ## Why
 
@@ -72,8 +73,11 @@ Working now: `read_networks_csv()`, `parse_network()`, `consensus_tip_order()`,
 `plot_network()`, `clade_frequencies()`, `reticulation_frequencies()`,
 `consensus_network()`, `restrict_taxa()`, `top_networks()`.
 
-Planned: phylogram mode and jitter (Phase 6), a vignette, and a robust
-nested-reticulation parser (W1) — see the workplan.
+Layout extras: `densinet(mode = "phylogram")`, `densinet(jitter = 0.01)`,
+`densinet(layout = "rectangular")`.
+
+Deferred: an R-Markdown vignette (pending pandoc; see [`docs/TUTORIAL.md`](docs/TUTORIAL.md))
+and DensiTree-style top-N topology coloring — see the workplan.
 
 ## Documentation
 

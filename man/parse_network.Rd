@@ -17,7 +17,10 @@ An \code{anansi_network}: the \code{ape::evonet}, the raw string, the parsed
 gamma table, a \verb{#Hk}->node map, parsing \code{issues} (character), and metadata.
 }
 \description{
-Parse one extended-Newick network into an \code{anansi_network}
+Uses anansi's native extended-Newick parser (which resolves nested/stacked
+reticulations and hybrid-free trees), falling back to \code{ape::read.evonet} +
+regex gamma parsing only if the native parser fails. The gamma table and
+\verb{#Hk}->node map come straight from the parse.
 }
 \examples{
 net <- parse_network("((A:1,(B:1)#H1:1::0.7):1,(C:1,#H1:1::0.3):1);")

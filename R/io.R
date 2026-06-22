@@ -53,7 +53,35 @@ parse_one_evonet <- function(enewick) {
   net
 }
 
+# Legacy parse via ape::read.evonet + regex gammas (used only as a fallback if
+# the native parser fails). Flags phantom tips it cannot resolve. Internal.
+parse_network_legacy <- function(enewick, meta) {
+  net <- parse_one_evonet(enewick)
+  gammas <- parse_gammas(enewick)
+  ntip <- length(net$tip.label)
+  nl <- net$node.label
+  hybrid_nodes <- integer(0)
+  if (!is.null(nl)) {
+    keep <- !is.na(nl) & nzchar(nl)
+    if (any(keep)) hybrid_nodes <- stats::setNames(ntip + which(keep), nl[keep])
+  }
+  issues <- "parsed via legacy read.evonet fallback"
+  n_empty <- sum(!nzchar(net$tip.label) | is.na(net$tip.label))
+  if (n_empty > 0L) {
+    issues <- c(issues, sprintf("%d unlabeled phantom tip(s)", n_empty))
+  }
+  structure(list(evonet = net, enewick = enewick, gammas = gammas,
+                 hybrid_nodes = hybrid_nodes, meta = as.list(meta),
+                 issues = issues),
+            class = "anansi_network")
+}
+
 #' Parse one extended-Newick network into an `anansi_network`
+#'
+#' Uses anansi's native extended-Newick parser (which resolves nested/stacked
+#' reticulations and hybrid-free trees), falling back to `ape::read.evonet` +
+#' regex gamma parsing only if the native parser fails. The gamma table and
+#' `#Hk`->node map come straight from the parse.
 #'
 #' @param enewick A single extended-Newick string.
 #' @param meta Optional named list of per-network metadata (e.g. rank,
@@ -66,34 +94,17 @@ parse_one_evonet <- function(enewick) {
 #' @export
 parse_network <- function(enewick, meta = list()) {
   stopifnot(is.character(enewick), length(enewick) == 1L)
-  net <- parse_one_evonet(enewick)
-  gammas <- parse_gammas(enewick)
-
-  # Map each hybrid label (#Hk) to its internal node number. read.evonet stores
-  # the label on the corresponding internal node; tips come first, so internal
-  # node k has index ntip + k.
-  ntip <- length(net$tip.label)
-  nl <- net$node.label
-  hybrid_nodes <- integer(0)
-  if (!is.null(nl)) {
-    keep <- !is.na(nl) & nzchar(nl)
-    if (any(keep)) hybrid_nodes <- stats::setNames(ntip + which(keep), nl[keep])
+  parsed <- tryCatch(enewick_to_anansi(enewick), error = function(e) NULL)
+  ok <- !is.null(parsed) && length(parsed$evonet$tip.label) > 0L &&
+    !any(is.na(parsed$evonet$tip.label) | !nzchar(parsed$evonet$tip.label))
+  if (ok) {
+    return(structure(list(evonet = parsed$evonet, enewick = enewick,
+                          gammas = parsed$gammas,
+                          hybrid_nodes = parsed$hybrid_nodes,
+                          meta = as.list(meta), issues = parsed$issues),
+                     class = "anansi_network"))
   }
-
-  # Flag known parsing artifacts. Phantom (unlabeled) tips arise when
-  # read.evonet cannot resolve nested/stacked reticulations.
-  issues <- character(0)
-  n_empty <- sum(!nzchar(net$tip.label) | is.na(net$tip.label))
-  if (n_empty > 0L) {
-    issues <- c(issues, sprintf(
-      "%d unlabeled phantom tip(s) (read.evonet could not resolve nested reticulations)",
-      n_empty))
-  }
-
-  structure(list(evonet = net, enewick = enewick, gammas = gammas,
-                 hybrid_nodes = hybrid_nodes, meta = as.list(meta),
-                 issues = issues),
-            class = "anansi_network")
+  parse_network_legacy(enewick, meta)
 }
 
 # Resolve which CSV column holds the network strings. Internal.

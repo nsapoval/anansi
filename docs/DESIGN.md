@@ -188,12 +188,16 @@ keeps working) and attach the things `read.evonet()` drops (gammas) plus provena
   reticulation's endpoints collapse onto the same backbone edge.
 - **Phylogram normalization (D6).** Which normalization preserves interpretable node-
   height uncertainty without letting one network dominate?
-- **Parser robustness (W1, see WORKPLAN).** `ape::read.evonet` (our D8 substrate)
-  mis-parses nested/stacked (level-k) reticulations, emitting phantom empty-label
-  tips, and fails on zero-reticulation trees (handled via a `read.tree` fallback).
-  Phase 1 flags the phantom-tip cases (`taxa_ok`/`issues`) rather than trusting them.
-  Open: adopt `ggret::read_enewick`, write a custom Rich-Newick parser, or repair
-  `read.evonet` output — a decision that revisits D8.
+- **Parser robustness (W1) — RESOLVED.** `ape::read.evonet` mis-parses
+  nested/stacked (level-k) reticulations (phantom tips) and fails on
+  zero-reticulation trees. We now use a **native recursive-descent extended-Newick
+  parser** (`R/enewick.R`, `enewick_to_anansi()`) as the primary parser, with
+  `read.evonet` as a fallback. It merges hybrid placeholders into reticulation
+  edges and prunes nodes with no sampled descendants (ghost donors / leaf hybrids).
+  This revises D8: we own the eNewick parser rather than reusing `read.evonet`.
+  Remaining nuance: leaf-hybrid reticulations (recipient with no sampled
+  descendants) are dropped as invisible over the taxon set — reasonable for
+  visualization, but worth noting if exact reticulation counts matter.
 
 ## 10. Dependencies & environment
 

@@ -130,7 +130,7 @@ Objective: production quality.
 | `anansi_network` / `anansi_netset` model | ✅ | 1 | + `issues`, `taxa_ok` |
 | Fixed-taxon-set validation | ✅ | 1 | modal-set check, warn + flag |
 | Single-network plot (parity with reference) | ✅ | 1 | verified pixel-faithful |
-| **Robust nested-reticulation parser (W1)** | ⬜ | 1.5? | read.evonet artifact; see below |
+| **Robust nested-reticulation parser (W1)** | ✅ | — | native parser; all files 100% |
 | Consensus tip ordering | ✅ | 2 | mode/mds/closest_leaf/first/manual |
 | Shared cladogram layout engine | ✅ | 2 | + phylogram path; x scaled to [0,1] |
 | `densinet()` overlay (backbone + reticulation cloud) | ✅ | 3 | slanted + rectangular |
@@ -148,16 +148,17 @@ Objective: production quality.
 
 ## Backlog / decisions
 
-**W1 — Robust nested-reticulation eNewick parsing.** `ape::read.evonet` produces
-phantom empty-label tips for level-k (nested/stacked) reticulations, affecting a
-minority of the `d10k` networks (0 in `Lacerta`/`Zootoca`). Currently flagged via
-`taxa_ok` and excluded by the user. A proper fix is needed before the overlay can
-faithfully include those networks. **Options (needs a decision):**
-1. Adopt `ggret::read_enewick()` (GitHub-only dependency) if it resolves them.
-2. Write a custom Rich-Newick parser (full control; most work).
-3. Post-process `read.evonet` output to repair phantom donors (reuses ape;
-   reticulation surgery is delicate — overlaps with Phase 5).
-*Recommendation:* spike option 1 first; fall back to 3. Affects design D8.
+**W1 — Robust nested-reticulation eNewick parsing ✅ (done).** Implemented a
+self-contained recursive-descent extended-Newick parser (`R/enewick.R`,
+`enewick_to_anansi()`), now the **primary** parser in `parse_network()`
+(`ape::read.evonet` kept only as a fallback). It merges each hybrid's placeholder
+into its defining occurrence as a reticulation edge, then prunes nodes with no
+sampled descendants (ghost donors -> re-point reticulation to parent; leaf hybrids
+-> drop the reticulation). Resolves nested/stacked (level-k) reticulations and
+hybrid-free trees. Chosen over `ggret` (GitHub-only dep) and over repairing
+`read.evonet` output (fragile). Revises design D8 (we now own the parser).
+*Result:* all sample files parse 100% (`taxa_ok` = 60/60, 460/460, 230/230,
+230/230); 140 tests; `R CMD check` clean.
 
 ## Non-goals (current)
 
