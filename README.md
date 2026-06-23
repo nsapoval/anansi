@@ -84,6 +84,34 @@ run_anansi_app()
 The same input → figure mapping is available programmatically via
 `build_densinet(netset, params)` and `netset_from_enewick(text)`.
 
+#### Live app & deployment
+
+A hosted copy runs on shinyapps.io: **https://&lt;account&gt;.shinyapps.io/anansi/**
+(replace `<account>` with the shinyapps.io account name).
+
+Deployment is automated: every push to `main` that touches `R/`, `inst/`,
+`DESCRIPTION`, `NAMESPACE`, or `deploy/` triggers the
+[`Deploy to shinyapps.io`](.github/workflows/deploy-shinyapps.yaml) GitHub Action,
+which installs `anansi` from GitHub plus its dependency closure and runs
+[`deploy/deploy.R`](deploy/deploy.R). Because the app is a thin UI over the
+package, the public repo must stay **public** so the build server can install
+`anansi` via `install_github`.
+
+One-time setup for the auto-deploy:
+
+1. Create a token at shinyapps.io → **Account → Tokens → Add Token → Show secret**.
+2. Add three GitHub repository secrets (repo **Settings → Secrets and variables →
+   Actions**): `SHINYAPPS_NAME` (account name), `SHINYAPPS_TOKEN`, `SHINYAPPS_SECRET`.
+
+To deploy manually from a local clone instead:
+
+```r
+install.packages("rsconnect")
+rsconnect::setAccountInfo(name = "<account>", token = "<token>", secret = "<secret>")
+Sys.setenv(SHINYAPPS_NAME = "<account>")
+source("deploy/deploy.R")   # deploys inst/shiny as app "anansi"
+```
+
 Working now: `read_networks_csv()`, `parse_network()`, `consensus_tip_order()`,
 `layout_network()`/`layout_netset()`, `densinet()` (with `consensus`/`top_n`/`keep`),
 `plot_network()`, `clade_frequencies()`, `reticulation_frequencies()`,

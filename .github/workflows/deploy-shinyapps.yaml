@@ -1,0 +1,53 @@
+name: Deploy to shinyapps.io
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'R/**'
+      - 'inst/**'
+      - 'DESCRIPTION'
+      - 'NAMESPACE'
+      - 'deploy/**'
+      - '.github/workflows/deploy-shinyapps.yaml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Used by setup-r-dependencies / pak for GitHub API rate limits.
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      # Installs the package's DESCRIPTION deps (Imports: ape, tanggle, ggtree,
+      # ggplot2, rlang; Suggests: shiny, bslib, colourpicker, svglite) plus the
+      # extras below, with library caching. tanggle/ggtree are Bioconductor and
+      # compile from source on Ubuntu, so the FIRST run is slow (~15-25 min);
+      # the cache makes subsequent runs fast.
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: >
+            any::rsconnect
+            any::shiny
+            any::bslib
+            any::colourpicker
+            any::svglite
+
+      # Install anansi itself from GitHub at the pushed commit so the deployment
+      # manifest records a reproducible github source (RemoteType: github,
+      # nsapoval/anansi@<sha>) that the shinyapps.io build server can rebuild.
+      - name: Install anansi from GitHub
+        run: Rscript -e 'pak::pak(paste0("nsapoval/anansi@", Sys.getenv("GITHUB_SHA")))'
+
+      - name: Deploy to shinyapps.io
+        env:
+          SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
+          SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
+          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+        run: Rscript deploy/deploy.R

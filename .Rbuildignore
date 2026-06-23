@@ -14,3 +14,6 @@
 ^figures$
 ^dev$
 ^notebooks$
+^deploy$
+^rsconnect$
+^inst/shiny/rsconnect$
