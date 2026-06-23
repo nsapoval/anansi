@@ -89,20 +89,45 @@ pin_outgroup <- function(order, outgroup, position = c("top", "bottom")) {
   if (position == "top") c(ing, og) else c(og, ing)
 }
 
+# Rotate each internal node's children to follow `seed` (children ordered by the
+# mean seed-rank of their descendant tips), then read off the resulting tip order
+# by depth-first traversal. Every clade is contiguous by construction, so the
+# order matches `seed` as closely as the topology allows with no crossings. Pure
+# R (avoids ape::rotateConstr, whose C routine can crash on some consensus
+# trees) and handles polytomies. Internal.
+order_tree_to_seed <- function(tr, seed) {
+  ntip <- length(tr$tip.label)
+  rank <- match(tr$tip.label, seed)               # seed rank by tip index
+  child_by_parent <- split(tr$edge[, 2], tr$edge[, 1])
+  root <- setdiff(tr$edge[, 1], tr$edge[, 2])[1]   # node that is never a child
+  meanrank <- function(node) {
+    if (node <= ntip) return(rank[node])
+    mean(vapply(child_by_parent[[as.character(node)]], meanrank, numeric(1)))
+  }
+  collect <- function(node) {
+    if (node <= ntip) return(tr$tip.label[node])
+    kids <- child_by_parent[[as.character(node)]]
+    kids <- kids[order(vapply(kids, meanrank, numeric(1)))]
+    unlist(lapply(kids, collect), use.names = FALSE)
+  }
+  collect(root)
+}
+
 # Snap a seed tip order to the majority-rule consensus topology: build the
-# consensus of the (consistent) backbone trees, rotate it to match `seed` as
-# closely as the topology allows (ape::rotateConstr), then read off its
-# clade-contiguous tip order. Guarantees no crossings in the consensus tree.
-# Internal.
+# consensus of the (consistent) backbone trees and rotate it to follow `seed`
+# (see order_tree_to_seed), so every consensus clade is contiguous and the
+# consensus backbone has no crossings. Internal.
 snap_order_to_consensus <- function(nets, ref, seed, p = 0.5) {
   ok <- vapply(nets, function(n) setequal(ensure_evonet(n)$tip.label, ref),
                logical(1))
   nets <- nets[ok]
   if (!length(nets)) return(seed)
-  trees <- lapply(nets, function(n) backbone_tree(ensure_evonet(n)))
+  # collapse.singles: drop unary backbone nodes that crash ape's consensus().
+  trees <- lapply(nets, function(n)
+    ape::collapse.singles(backbone_tree(ensure_evonet(n))))
   class(trees) <- "multiPhylo"
   cons <- ape::consensus(trees, p = p, rooted = TRUE)
-  network_tip_order(ape::rotateConstr(cons, seed))
+  order_tree_to_seed(cons, seed)
 }
 
 #' Choose a shared tip ordering for a set of networks
@@ -120,9 +145,10 @@ snap_order_to_consensus <- function(nets, ref, seed, p = 0.5) {
 #' @param outgroup_position Where to pin the `outgroup`: `"top"` (default) or
 #'   `"bottom"` of the figure.
 #' @param snap_to_consensus If TRUE, rotate the majority-rule consensus tree to
-#'   match the chosen order as closely as its topology allows
-#'   ([ape::rotateConstr]) and return that order instead, so every consensus
-#'   clade is contiguous (no crossings in the consensus backbone). Default FALSE.
+#'   follow the chosen order as closely as its topology allows (each node's
+#'   children ordered by the mean rank of their descendant tips) and return that
+#'   order instead, so every consensus clade is contiguous (no crossings in the
+#'   consensus backbone). Default FALSE.
 #' @param consensus_p Majority threshold for the consensus tree used by
 #'   `snap_to_consensus` (default 0.5).
 #' @return A character vector of taxa in the chosen order.

@@ -30,9 +30,10 @@ order (kept contiguous, in their existing relative order).}
 \code{"bottom"} of the figure.}
 
 \item{snap_to_consensus}{If TRUE, rotate the majority-rule consensus tree to
-match the chosen order as closely as its topology allows
-(\link[ape:rotate]{ape::rotateConstr}) and return that order instead, so every consensus
-clade is contiguous (no crossings in the consensus backbone). Default FALSE.}
+follow the chosen order as closely as its topology allows (each node's
+children ordered by the mean rank of their descendant tips) and return that
+order instead, so every consensus clade is contiguous (no crossings in the
+consensus backbone). Default FALSE.}
 
 \item{consensus_p}{Majority threshold for the consensus tree used by
 \code{snap_to_consensus} (default 0.5).}

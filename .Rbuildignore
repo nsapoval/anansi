@@ -12,3 +12,4 @@
 ^\.claude$
 ^figures$
 ^dev$
+^notebooks$

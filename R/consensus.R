@@ -24,9 +24,13 @@ descendant_tips <- function(tr) {
   res
 }
 
-# Backbone trees of the consistent networks, as a multiPhylo. Internal.
+# Backbone trees of the consistent networks, as a multiPhylo. Singleton
+# (degree-2) nodes -- left behind at hybrid nodes once the reticulation edge is
+# stripped -- are collapsed, since they do not change any clade but make ape's
+# C-level consensus/prop.part routines segfault. Internal.
 backbone_multiphylo <- function(ns) {
-  trees <- lapply(ns$networks, function(n) backbone_tree(ensure_evonet(n)))
+  trees <- lapply(ns$networks, function(n)
+    ape::collapse.singles(backbone_tree(ensure_evonet(n))))
   class(trees) <- "multiPhylo"
   trees
 }
@@ -212,8 +216,10 @@ consensus_network <- function(x, p = 0.5, ret_support_min = 0, directed = TRUE) 
   cons <- ape::consensus(trees, p = p, rooted = TRUE)
   if (is.null(cons$node.label)) cons$node.label <- rep("", cons$Nnode)
   # Per-internal-node support (fraction of networks containing that clade).
+  # rooted = TRUE matches the rooted consensus and avoids prop.clades returning
+  # NA for clades it otherwise fails to match.
   ntip <- length(cons$tip.label)
-  support <- stats::setNames(ape::prop.clades(cons, trees) / N,
+  support <- stats::setNames(ape::prop.clades(cons, trees, rooted = TRUE) / N,
                              (ntip + 1L):(ntip + cons$Nnode))
   rets <- reticulation_frequencies(ns, directed = directed)
   if (nrow(rets)) rets <- rets[rets$freq >= ret_support_min, , drop = FALSE]

@@ -1,0 +1,129 @@
+---
+title: "anansi example: top networks per reticulation count (d10k_x100), outgroup-snap view"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  fig.width = 10, fig.height = 7, dpi = 150
+)
+library(ggplot2)
+
+# Use the installed package if available, else load the source tree. This makes
+# the notebook work both as a dev example (knit from the repo) and standalone.
+if (requireNamespace("anansi", quietly = TRUE)) {
+  library(anansi)
+} else {
+  devtools::load_all(if (file.exists("DESCRIPTION")) "." else "..")
+}
+
+# Resolve the data path whether knit from the repo root or from notebooks/.
+data_path <- if (file.exists("data/d10k_x100_results.csv")) {
+  "data/d10k_x100_results.csv"
+} else {
+  "../data/d10k_x100_results.csv"
+}
+```
+
+## What this notebook does
+
+`data/d10k_x100_results.csv` holds inferred phylogenetic networks for two
+reference rootings of the same 15 lizard taxa --- a *Lacerta agilis* reference
+(`dataset == "lac"`) and a *Zootoca vivipara* reference (`dataset == "zoo"`) ---
+each with the **top 10 networks per reticulation count** (1, 2, and 3
+reticulations) ranked by `log_probability`.
+
+For each reference we:
+
+1. keep the **top 3 networks per reticulation count** (9 networks per reference), then
+2. draw an anansi `densinet()` **consensus overlay** that pins the outgroup
+   (*Zootoca vivipara*, *Lacerta agilis*) to the top and snaps the shared tip
+   order to the consensus topology so the consensus backbone has no crossings
+   (the same style as `figures/11_lacerta_snap.png`).
+
+The consensus backbone is the majority-rule tree of the networks' backbones,
+shaded grey&rarr;black by clade support; the reticulation events frequent across
+the selected networks are drawn as arrows.
+
+## Load the networks
+
+```{r load}
+all <- read_networks_csv(data_path)
+all
+table(dataset = all$meta$dataset, reticulations = all$meta$reticulations)
+```
+
+## Select the top 3 networks per reticulation count
+
+`top_networks()` ranks across a whole set; here we want the best 3 *within each
+reticulation count*, separately per reference. A small grouped selection on the
+metadata does that, then we subset the netset with `[`.
+
+```{r select}
+top_per_reticulation <- function(ns, dataset, n = 3) {
+  sub <- ns[which(ns$meta$dataset == dataset)]
+  m <- sub$meta
+  idx <- unlist(
+    lapply(split(seq_len(nrow(m)), m$reticulations), function(ii) {
+      ii[order(m$log_probability[ii], decreasing = TRUE)][seq_len(min(n, length(ii)))]
+    }),
+    use.names = FALSE
+  )
+  sub[sort(idx)]
+}
+
+lac <- top_per_reticulation(all, "lac", n = 3)
+zoo <- top_per_reticulation(all, "zoo", n = 3)
+
+lac$meta[, c("dataset", "reticulations", "rank", "log_probability")]
+```
+
+## Outgroup-snap consensus plots
+
+```{r plot-params}
+outgroup <- c("Zootoca_vivipara", "Lacerta_agilis")
+```
+
+### Lacerta reference
+
+```{r plot-lac}
+densinet(
+  lac,
+  method            = "mds",
+  outgroup          = outgroup,
+  outgroup_position = "top",
+  snap_to_consensus = TRUE,
+  title = "d10k_x100 (lac ref): top 3 networks per reticulation count"
+)
+```
+
+### Zootoca reference
+
+```{r plot-zoo}
+densinet(
+  zoo,
+  method            = "mds",
+  outgroup          = outgroup,
+  outgroup_position = "top",
+  snap_to_consensus = TRUE,
+  title = "d10k_x100 (zoo ref): top 3 networks per reticulation count"
+)
+```
+
+## Notes
+
+- `outgroup` / `outgroup_position = "top"` pin *Zootoca* and *Lacerta* to the
+  top of each figure; `snap_to_consensus = TRUE` rotates the shared tip order to
+  the consensus topology so the (black) consensus backbone has no crossings.
+- Because we overlay the top 3 networks for **each** of 1--3 reticulations, the
+  reticulation cloud (and the consensus reticulation arrows) reflects events
+  across all those models at once. Tune `consensus_ret_min` to keep only the
+  most frequent events, or set `reticulation_style = "hybrid"` for the
+  direction-agnostic two-edge layout.
+- To anchor reticulations further along their branches, raise `ret_edge_frac`
+  (default `0.1`).
+```
