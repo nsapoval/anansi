@@ -32,12 +32,21 @@ jobs:
       # the cache makes subsequent runs fast.
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          # rsconnect snapshots the FULL recursive dependency graph with renv,
+          # which insists every package in it is installed -- including the
+          # Bioconductor infrastructure (BiocManager, BiocVersion, needed because
+          # ggtree/tanggle/phangorn are Bioc) and LinkingTo build deps (cpp11,
+          # pulled in by svglite/igraph/isoband). Binary installs skip those, so
+          # name them explicitly or the renv snapshot pre-flight aborts.
           extra-packages: >
             any::rsconnect
             any::shiny
             any::bslib
             any::colourpicker
             any::svglite
+            any::BiocManager
+            any::cpp11
+            bioc::BiocVersion
 
       # Install anansi itself from GitHub at the pushed commit so the deployment
       # manifest records a reproducible github source (RemoteType: github,
