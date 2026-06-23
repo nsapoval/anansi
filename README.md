@@ -68,10 +68,27 @@ reticulation_frequencies(nets)
 consensus_network(nets, p = 0.5)
 ```
 
+### Web app
+
+`run_anansi_app()` launches an interactive Shiny interface: upload a CSV (or
+paste/upload raw extended-Newick, or load the bundled example), tune the key
+`densinet()` controls — with the rest behind an **Advanced options** toggle —
+preview the figure, and download it as PNG/PDF (SVG when `svglite` is installed).
+
+```r
+# install the (suggested) app dependencies once:
+install.packages(c("shiny", "bslib", "colourpicker", "svglite"))  # only `shiny` is required
+run_anansi_app()
+```
+
+The same input → figure mapping is available programmatically via
+`build_densinet(netset, params)` and `netset_from_enewick(text)`.
+
 Working now: `read_networks_csv()`, `parse_network()`, `consensus_tip_order()`,
 `layout_network()`/`layout_netset()`, `densinet()` (with `consensus`/`top_n`/`keep`),
 `plot_network()`, `clade_frequencies()`, `reticulation_frequencies()`,
-`consensus_network()`, `restrict_taxa()`, `top_networks()`.
+`consensus_network()`, `restrict_taxa()`, `top_networks()`,
+`run_anansi_app()`, `build_densinet()`, `netset_from_enewick()`.
 
 Layout extras: `densinet(mode = "phylogram")`, `densinet(jitter = 0.01)`,
 `densinet(layout = "rectangular")`.

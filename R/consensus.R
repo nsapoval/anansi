@@ -234,9 +234,14 @@ consensus_network <- function(x, p = 0.5, ret_support_min = 0, directed = TRUE) 
 # Returns list(backbone = df(x,y,xend,yend,support),
 #              reticulations = df(x,y,xend,yend,freq,mean_gamma) | NULL).
 # With a directed consensus (cons$directed), the reticulations are donor ->
-# recipient edges (one per event); with an undirected consensus they are two
-# edges per event (recipient -> parent1, recipient -> parent2). `ret_edge_frac`
-# anchors each endpoint a fraction of the way from its node toward the node's
+# recipient edges (one per event) and the recipient keeps its solid backbone
+# in-edge (the major/tree edge). With an undirected consensus they are two edges
+# per event (recipient -> parent1, recipient -> parent2): this is a true
+# consensus NETWORK, so the backbone in-edge into each hybrid recipient is
+# omitted (the hybrid hangs from its two dashed edges only, like the single-
+# network hybrid view) and the recipient end of those edges is anchored AT the
+# node rather than nudged toward the now-removed parent. `ret_edge_frac` anchors
+# each remaining endpoint a fraction of the way from its node toward the node's
 # parent (0 = at the node, the legacy behavior). Internal.
 consensus_segments <- function(cons, tip_order, mode = "cladogram",
                                ret_min = 0, ret_edge_frac = 0) {
@@ -256,12 +261,36 @@ consensus_segments <- function(cons, tip_order, mode = "cladogram",
   ntip <- length(tr$tip.label)
 
   E <- tr$edge
-  childsup <- vapply(E[, 2], function(ch) {
+
+  # Reticulation events (frequency-filtered) and recipient node ids are needed
+  # both to draw the dashed edges below and -- for an undirected (hybrid)
+  # consensus -- to drop the backbone in-edge into each hybrid recipient.
+  rets <- cons$reticulations
+  if (!is.null(rets) && nrow(rets)) rets <- rets[rets$freq >= ret_min, , drop = FALSE]
+  has_rets <- !is.null(rets) && nrow(rets)
+  directed <- is.null(cons$directed) || isTRUE(cons$directed)
+  mrca <- function(tipstr) {
+    tips <- strsplit(tipstr, ",", fixed = TRUE)[[1]]
+    if (length(tips) == 1L) return(match(tips, tr$tip.label))
+    m <- ape::getMRCA(tr, tips)
+    if (is.null(m)) NA_integer_ else as.integer(m)
+  }
+  rc <- if (has_rets) vapply(rets$recipient, mrca, integer(1)) else integer(0)
+
+  # A true consensus network: in undirected mode the hybrid node has only its
+  # two dashed in-edges, so drop any backbone edge flowing INTO a recipient.
+  keep_row <- rep(TRUE, nrow(E))
+  if (!directed && length(rc)) {
+    rc_drop <- rc[!is.na(rc)]
+    if (length(rc_drop)) keep_row <- !(E[, 2] %in% rc_drop)
+  }
+  Ek <- E[keep_row, , drop = FALSE]
+  childsup <- vapply(Ek[, 2], function(ch) {
     if (ch <= ntip) 1 else unname(cons$support[as.character(ch)])
   }, numeric(1))
   backbone <- data.frame(
-    x = nx[as.character(E[, 1])], y = ny[as.character(E[, 1])],
-    xend = nx[as.character(E[, 2])], yend = ny[as.character(E[, 2])],
+    x = nx[as.character(Ek[, 1])], y = ny[as.character(Ek[, 1])],
+    xend = nx[as.character(Ek[, 2])], yend = ny[as.character(Ek[, 2])],
     support = childsup, stringsAsFactors = FALSE)
 
   # Node coordinate, nudged `ret_edge_frac` toward the node's parent.
@@ -273,22 +302,18 @@ consensus_segments <- function(cons, tip_order, mode = "cladogram",
     px <- unname(nx[as.character(pp[1])]); py <- unname(ny[as.character(pp[1])])
     c(ax + ret_edge_frac * (px - ax), ay + ret_edge_frac * (py - ay))
   }
+  # Raw node coordinate (no nudge); used for the recipient end of undirected
+  # hybrid edges, whose backbone in-edge has been removed.
+  node_xy <- function(node) {
+    if (is.na(node)) return(c(NA_real_, NA_real_))
+    c(unname(nx[as.character(node)]), unname(ny[as.character(node)]))
+  }
 
   retseg <- NULL
-  rets <- cons$reticulations
-  if (!is.null(rets) && nrow(rets)) rets <- rets[rets$freq >= ret_min, , drop = FALSE]
-  if (!is.null(rets) && nrow(rets)) {
-    mrca <- function(tipstr) {
-      tips <- strsplit(tipstr, ",", fixed = TRUE)[[1]]
-      if (length(tips) == 1L) return(match(tips, tr$tip.label))
-      m <- ape::getMRCA(tr, tips)
-      if (is.null(m)) NA_integer_ else as.integer(m)
-    }
-    directed <- is.null(cons$directed) || isTRUE(cons$directed)
+  if (has_rets) {
     segs <- list()
     if (directed) {
       dn <- vapply(rets$donor, mrca, integer(1))
-      rc <- vapply(rets$recipient, mrca, integer(1))
       for (i in seq_len(nrow(rets))) {
         if (is.na(dn[i]) || is.na(rc[i])) next
         a0 <- anchor(dn[i]); a1 <- anchor(rc[i])
@@ -298,12 +323,11 @@ consensus_segments <- function(cons, tip_order, mode = "cladogram",
           stringsAsFactors = FALSE)
       }
     } else {
-      rc <- vapply(rets$recipient, mrca, integer(1))
       p1 <- vapply(rets$parent1, mrca, integer(1))
       p2 <- vapply(rets$parent2, mrca, integer(1))
       for (i in seq_len(nrow(rets))) {
         if (is.na(rc[i])) next
-        ra <- anchor(rc[i])
+        ra <- node_xy(rc[i])
         for (pp in c(p1[i], p2[i])) {
           if (is.na(pp)) next
           pa <- anchor(pp)

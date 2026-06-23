@@ -95,3 +95,22 @@ test_that("undirected hybrid consensus_segments returns two edges per event", {
   starts <- unique(paste(cs$reticulations$x, cs$reticulations$y))
   expect_length(starts, 1L)
 })
+
+test_that("undirected consensus omits the backbone in-edge into hybrid nodes", {
+  # A true consensus network: the hybrid recipient (B) has no solid tree in-edge,
+  # only its two dashed edges, so the backbone has exactly one fewer edge than
+  # the consensus tree (which would otherwise draw B's pendant edge).
+  ord  <- consensus_tip_order(uns, method = "first")
+  cons <- consensus_network(uns, directed = FALSE)
+  cs   <- consensus_segments(cons, ord)
+  expect_equal(nrow(cs$backbone), nrow(cons$tree$edge) - 1L)
+})
+
+test_that("directed consensus keeps the tree in-edge into the recipient", {
+  # Directed reticulations are donor -> recipient arrows; the recipient keeps its
+  # solid (major/tree) in-edge, so no backbone edge is dropped.
+  ord  <- consensus_tip_order(ns, method = "first")
+  cons <- consensus_network(ns, directed = TRUE)
+  cs   <- consensus_segments(cons, ord)
+  expect_equal(nrow(cs$backbone), nrow(cons$tree$edge))
+})

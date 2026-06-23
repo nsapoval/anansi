@@ -1,5 +1,6 @@
 ^docs$
 ^plot_network\.R$
+^run_app\.R$
 ^data$
 ^network_.*\.png$
 ^.*\.png$
