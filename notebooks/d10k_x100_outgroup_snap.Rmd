@@ -9,7 +9,7 @@ output:
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   echo = TRUE, message = FALSE, warning = FALSE,
-  fig.width = 10, fig.height = 7, dpi = 150
+  fig.width = 8, fig.height = 6, dpi = 300
 )
 library(ggplot2)
 
@@ -91,6 +91,8 @@ densinet(
   method            = "mds",
   outgroup          = c("Zootoca_vivipara", "Lacerta_agilis"),
   outgroup_position = "top",
+  ret_edge_frac     = 0.75,
+  consensus_ret_min = 0.25,
   snap_to_consensus = TRUE,
   title = "d10k_x100: top 3 per reticulation count (both references combined)"
 )
