@@ -37,13 +37,12 @@ reference rootings of the same 15 lizard taxa --- a *Lacerta agilis* reference
 each with the **top 10 networks per reticulation count** (1, 2, and 3
 reticulations) ranked by `log_probability`.
 
-For each reference we:
-
-1. keep the **top 3 networks per reticulation count** (9 networks per reference), then
-2. draw an anansi `densinet()` **consensus overlay** that pins the outgroup
-   (*Zootoca vivipara*, *Lacerta agilis*) to the top and snaps the shared tip
-   order to the consensus topology so the consensus backbone has no crossings
-   (the same style as `figures/11_lacerta_snap.png`).
+We keep the **top 3 networks per reticulation count from each reference** and
+**join both references into one set** (18 networks), then draw a single anansi
+`densinet()` **consensus overlay** that pins the outgroup (*Zootoca vivipara*,
+*Lacerta agilis*) to the top and snaps the shared tip order to the consensus
+topology so the consensus backbone has no crossings (the same style as
+`figures/11_lacerta_snap.png`).
 
 The consensus backbone is the majority-rule tree of the networks' backbones,
 shaded grey&rarr;black by clade support; the reticulation events frequent across
@@ -57,73 +56,58 @@ all
 table(dataset = all$meta$dataset, reticulations = all$meta$reticulations)
 ```
 
-## Select the top 3 networks per reticulation count
+## Select the top 3 per reticulation count, both references combined
 
 `top_networks()` ranks across a whole set; here we want the best 3 *within each
-reticulation count*, separately per reference. A small grouped selection on the
-metadata does that, then we subset the netset with `[`.
+reticulation count of each reference*, then everything pooled into one netset.
+A grouped selection on the metadata gives the row indices, and subsetting the
+netset with `[` returns a single combined `anansi_netset` (with metadata kept in
+sync).
 
 ```{r select}
-top_per_reticulation <- function(ns, dataset, n = 3) {
-  sub <- ns[which(ns$meta$dataset == dataset)]
-  m <- sub$meta
+top_per_reticulation <- function(ns, n = 3, datasets = unique(ns$meta$dataset)) {
+  m <- ns$meta
+  keep <- which(m$dataset %in% datasets)
+  grp <- interaction(m$dataset[keep], m$reticulations[keep], drop = TRUE)
   idx <- unlist(
-    lapply(split(seq_len(nrow(m)), m$reticulations), function(ii) {
+    lapply(split(keep, grp), function(ii) {
       ii[order(m$log_probability[ii], decreasing = TRUE)][seq_len(min(n, length(ii)))]
     }),
     use.names = FALSE
   )
-  sub[sort(idx)]
+  ns[sort(idx)]
 }
 
-lac <- top_per_reticulation(all, "lac", n = 3)
-zoo <- top_per_reticulation(all, "zoo", n = 3)
-
-lac$meta[, c("dataset", "reticulations", "rank", "log_probability")]
+combined <- top_per_reticulation(all, n = 3)   # 3 per (reference x reticulation count)
+combined
+table(dataset = combined$meta$dataset, reticulations = combined$meta$reticulations)
 ```
 
-## Outgroup-snap consensus plots
+## Outgroup-snap consensus plot (both references combined)
 
-```{r plot-params}
-outgroup <- c("Zootoca_vivipara", "Lacerta_agilis")
-```
-
-### Lacerta reference
-
-```{r plot-lac}
+```{r plot-combined}
 densinet(
-  lac,
+  combined,
   method            = "mds",
-  outgroup          = outgroup,
+  outgroup          = c("Zootoca_vivipara", "Lacerta_agilis"),
   outgroup_position = "top",
   snap_to_consensus = TRUE,
-  title = "d10k_x100 (lac ref): top 3 networks per reticulation count"
-)
-```
-
-### Zootoca reference
-
-```{r plot-zoo}
-densinet(
-  zoo,
-  method            = "mds",
-  outgroup          = outgroup,
-  outgroup_position = "top",
-  snap_to_consensus = TRUE,
-  title = "d10k_x100 (zoo ref): top 3 networks per reticulation count"
+  title = "d10k_x100: top 3 per reticulation count (both references combined)"
 )
 ```
 
 ## Notes
 
+- `combined` pools the *Lacerta*- and *Zootoca*-reference selections into one
+  `anansi_netset`; the consensus backbone and reticulation cloud therefore
+  summarize **agreement across both references and all reticulation counts** at
+  once. To inspect a single reference, pass `datasets = "lac"` (or `"zoo"`) to
+  the helper.
 - `outgroup` / `outgroup_position = "top"` pin *Zootoca* and *Lacerta* to the
-  top of each figure; `snap_to_consensus = TRUE` rotates the shared tip order to
-  the consensus topology so the (black) consensus backbone has no crossings.
-- Because we overlay the top 3 networks for **each** of 1--3 reticulations, the
-  reticulation cloud (and the consensus reticulation arrows) reflects events
-  across all those models at once. Tune `consensus_ret_min` to keep only the
-  most frequent events, or set `reticulation_style = "hybrid"` for the
-  direction-agnostic two-edge layout.
-- To anchor reticulations further along their branches, raise `ret_edge_frac`
-  (default `0.1`).
+  top; `snap_to_consensus = TRUE` rotates the shared tip order to the consensus
+  topology so the (black) consensus backbone has no crossings.
+- Tune `consensus_ret_min` to keep only the most frequent reticulation events,
+  set `reticulation_style = "hybrid"` for the direction-agnostic two-edge
+  layout, or raise `ret_edge_frac` (default `0.1`) to anchor reticulations
+  further along their branches.
 ```
