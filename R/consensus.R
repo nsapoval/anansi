@@ -93,22 +93,38 @@ clade_frequencies <- function(x) {
 #' together (see docs/DESIGN.md D4). Reports frequency and mean inheritance
 #' probability (gamma) per event.
 #'
+#' With `directed = FALSE`, events are instead keyed by the recipient clade plus
+#' the *unordered* pair of its two parent lineages (the donor clade and the
+#' backbone-sibling clade). This collapses reticulations that differ only by
+#' which parent is the major (backbone) vs minor (reticulation) edge -- i.e.
+#' direction-unstable events such as `((A,(B)#H1),(C,#H1))` and
+#' `((C,(B)#H1),(A,#H1))` -- into a single event. Used by the undirected hybrid
+#' layout (see [densinet]).
+#'
 #' @param x An [anansi_netset] (divergent networks are excluded).
-#' @return A data.frame with `key`, `donor`, `recipient`, `count`, `freq` and
-#'   `mean_gamma`, ordered by decreasing frequency. Zero rows if there are no
-#'   reticulations.
+#' @param directed If TRUE (default), key by directed donor -> recipient. If
+#'   FALSE, key by recipient + unordered parent pair (direction-agnostic).
+#' @return A data.frame ordered by decreasing frequency, with `key`, `count`,
+#'   `freq`, `mean_gamma` and, for `directed = TRUE`, `donor`/`recipient`, or for
+#'   `directed = FALSE`, `recipient`/`parent1`/`parent2`. Zero rows if there are
+#'   no reticulations.
 #' @examples
 #' a <- parse_network("(((A:1,B:1):1,(C:1)#H1:1::0.6):1,(D:1,#H1:1::0.4):1);")
 #' b <- parse_network("(((A:1,B:1):1,(C:1)#H1:1::0.7):1,(D:1,#H1:1::0.3):1);")
 #' reticulation_frequencies(anansi_netset(list(a, b)))
 #' @export
-reticulation_frequencies <- function(x) {
+reticulation_frequencies <- function(x, directed = TRUE) {
   ns <- as_consistent_netset(x)
   N <- length(ns$networks)
-  empty <- data.frame(key = character(), donor = character(),
-                      recipient = character(), count = integer(),
-                      freq = numeric(), mean_gamma = numeric(),
-                      stringsAsFactors = FALSE)
+  empty <- if (directed) {
+    data.frame(key = character(), donor = character(), recipient = character(),
+               count = integer(), freq = numeric(), mean_gamma = numeric(),
+               stringsAsFactors = FALSE)
+  } else {
+    data.frame(key = character(), recipient = character(), parent1 = character(),
+               parent2 = character(), count = integer(), freq = numeric(),
+               mean_gamma = numeric(), stringsAsFactors = FALSE)
+  }
   rows <- list()
   for (net in ns$networks) {
     ev <- ensure_evonet(net)
@@ -127,18 +143,39 @@ reticulation_frequencies <- function(x) {
           if (length(gg)) gamma <- gg[1]
         }
       }
-      rows[[length(rows) + 1L]] <- data.frame(
-        key = paste(donor, "->", recip), donor = donor, recipient = recip,
-        gamma = gamma, stringsAsFactors = FALSE)
+      if (directed) {
+        rows[[length(rows) + 1L]] <- data.frame(
+          key = paste(donor, "->", recip), donor = donor, recipient = recip,
+          gamma = gamma, stringsAsFactors = FALSE)
+      } else {
+        # Backbone-sibling clade = tips below the hybrid's tree-parent, minus
+        # the recipient itself. The hybrid's two parent lineages are then the
+        # donor clade and this sibling clade; key by their unordered pair.
+        tp <- ev$edge[ev$edge[, 2] == to, 1]
+        sib <- if (length(tp)) paste(sort(setdiff(dt[[tp[1]]], dt[[to]])),
+                                     collapse = ",") else ""
+        pars <- sort(c(donor, sib))
+        rows[[length(rows) + 1L]] <- data.frame(
+          key = paste0(recip, " : ", paste(pars, collapse = " + ")),
+          recipient = recip, parent1 = pars[1], parent2 = pars[2],
+          gamma = gamma, stringsAsFactors = FALSE)
+      }
     }
   }
   if (!length(rows)) return(empty)
   df <- do.call(rbind, rows)
   out <- do.call(rbind, lapply(split(df, df$key), function(d) {
-    data.frame(key = d$key[1], donor = d$donor[1], recipient = d$recipient[1],
-               count = nrow(d), freq = nrow(d) / N,
-               mean_gamma = mean(d$gamma, na.rm = TRUE),
-               stringsAsFactors = FALSE)
+    base <- data.frame(key = d$key[1], stringsAsFactors = FALSE)
+    if (directed) {
+      base$donor <- d$donor[1]; base$recipient <- d$recipient[1]
+    } else {
+      base$recipient <- d$recipient[1]
+      base$parent1 <- d$parent1[1]; base$parent2 <- d$parent2[1]
+    }
+    base$count <- nrow(d)
+    base$freq <- nrow(d) / N
+    base$mean_gamma <- mean(d$gamma, na.rm = TRUE)
+    base
   }))
   out <- out[order(-out$freq), ]
   rownames(out) <- NULL
@@ -156,15 +193,19 @@ reticulation_frequencies <- function(x) {
 #' @param p Majority threshold for the consensus tree (default 0.5).
 #' @param ret_support_min Keep only reticulation events with `freq >=` this
 #'   (default 0, keep all).
+#' @param directed Reticulation-event identity: `TRUE` (default) keys by directed
+#'   donor -> recipient; `FALSE` keys direction-agnostically (recipient +
+#'   unordered parent pair). See [reticulation_frequencies].
 #' @return An `anansi_consensus`: `tree` (the consensus `phylo`), `support`
-#'   (named by internal node), `reticulations` (data.frame), `N`, `p`, `taxa`.
+#'   (named by internal node), `reticulations` (data.frame), `directed`, `N`,
+#'   `p`, `taxa`.
 #' @examples
 #' a <- parse_network("(((A:1,B:1):1,(C:1)#H1:1::0.6):1,(D:1,#H1:1::0.4):1);")
 #' b <- parse_network("(((A:1,B:1):1,(C:1)#H1:1::0.7):1,(D:1,#H1:1::0.3):1);")
 #' cons <- consensus_network(anansi_netset(list(a, b)))
 #' cons$reticulations
 #' @export
-consensus_network <- function(x, p = 0.5, ret_support_min = 0) {
+consensus_network <- function(x, p = 0.5, ret_support_min = 0, directed = TRUE) {
   ns <- as_consistent_netset(x)
   trees <- backbone_multiphylo(ns)
   N <- length(trees)
@@ -174,18 +215,25 @@ consensus_network <- function(x, p = 0.5, ret_support_min = 0) {
   ntip <- length(cons$tip.label)
   support <- stats::setNames(ape::prop.clades(cons, trees) / N,
                              (ntip + 1L):(ntip + cons$Nnode))
-  rets <- reticulation_frequencies(ns)
+  rets <- reticulation_frequencies(ns, directed = directed)
   if (nrow(rets)) rets <- rets[rets$freq >= ret_support_min, , drop = FALSE]
   heights <- consensus_node_heights(cons, trees)
   structure(list(tree = cons, support = support, heights = heights,
-                 N = N, p = p, reticulations = rets, taxa = ns$taxa),
+                 N = N, p = p, reticulations = rets, directed = directed,
+                 taxa = ns$taxa),
             class = "anansi_consensus")
 }
 
 # Drawable segments for a consensus network on the shared, [0,1]-scaled frame.
 # Returns list(backbone = df(x,y,xend,yend,support),
-#              reticulations = df(x,y,xend,yend,freq,mean_gamma) | NULL). Internal.
-consensus_segments <- function(cons, tip_order, mode = "cladogram", ret_min = 0) {
+#              reticulations = df(x,y,xend,yend,freq,mean_gamma) | NULL).
+# With a directed consensus (cons$directed), the reticulations are donor ->
+# recipient edges (one per event); with an undirected consensus they are two
+# edges per event (recipient -> parent1, recipient -> parent2). `ret_edge_frac`
+# anchors each endpoint a fraction of the way from its node toward the node's
+# parent (0 = at the node, the legacy behavior). Internal.
+consensus_segments <- function(cons, tip_order, mode = "cladogram",
+                               ret_min = 0, ret_edge_frac = 0) {
   tr <- cons$tree
   # y is mode-independent; compute via cladogram (the consensus tree has no
   # branch lengths, so phylogram x comes from cons$heights instead).
@@ -210,26 +258,57 @@ consensus_segments <- function(cons, tip_order, mode = "cladogram", ret_min = 0)
     xend = nx[as.character(E[, 2])], yend = ny[as.character(E[, 2])],
     support = childsup, stringsAsFactors = FALSE)
 
+  # Node coordinate, nudged `ret_edge_frac` toward the node's parent.
+  anchor <- function(node) {
+    if (is.na(node)) return(c(NA_real_, NA_real_))
+    ax <- unname(nx[as.character(node)]); ay <- unname(ny[as.character(node)])
+    pp <- E[E[, 2] == node, 1]
+    if (!length(pp) || ret_edge_frac <= 0) return(c(ax, ay))
+    px <- unname(nx[as.character(pp[1])]); py <- unname(ny[as.character(pp[1])])
+    c(ax + ret_edge_frac * (px - ax), ay + ret_edge_frac * (py - ay))
+  }
+
   retseg <- NULL
   rets <- cons$reticulations
-  if (nrow(rets)) rets <- rets[rets$freq >= ret_min, , drop = FALSE]
-  if (nrow(rets)) {
+  if (!is.null(rets) && nrow(rets)) rets <- rets[rets$freq >= ret_min, , drop = FALSE]
+  if (!is.null(rets) && nrow(rets)) {
     mrca <- function(tipstr) {
       tips <- strsplit(tipstr, ",", fixed = TRUE)[[1]]
       if (length(tips) == 1L) return(match(tips, tr$tip.label))
       m <- ape::getMRCA(tr, tips)
       if (is.null(m)) NA_integer_ else as.integer(m)
     }
-    dn <- vapply(rets$donor, mrca, integer(1))
-    rc <- vapply(rets$recipient, mrca, integer(1))
-    ok <- !is.na(dn) & !is.na(rc)
-    if (any(ok)) {
-      retseg <- data.frame(
-        x = nx[as.character(dn[ok])], y = ny[as.character(dn[ok])],
-        xend = nx[as.character(rc[ok])], yend = ny[as.character(rc[ok])],
-        freq = rets$freq[ok], mean_gamma = rets$mean_gamma[ok],
-        stringsAsFactors = FALSE)
+    directed <- is.null(cons$directed) || isTRUE(cons$directed)
+    segs <- list()
+    if (directed) {
+      dn <- vapply(rets$donor, mrca, integer(1))
+      rc <- vapply(rets$recipient, mrca, integer(1))
+      for (i in seq_len(nrow(rets))) {
+        if (is.na(dn[i]) || is.na(rc[i])) next
+        a0 <- anchor(dn[i]); a1 <- anchor(rc[i])
+        segs[[length(segs) + 1L]] <- data.frame(
+          x = a0[1], y = a0[2], xend = a1[1], yend = a1[2],
+          freq = rets$freq[i], mean_gamma = rets$mean_gamma[i],
+          stringsAsFactors = FALSE)
+      }
+    } else {
+      rc <- vapply(rets$recipient, mrca, integer(1))
+      p1 <- vapply(rets$parent1, mrca, integer(1))
+      p2 <- vapply(rets$parent2, mrca, integer(1))
+      for (i in seq_len(nrow(rets))) {
+        if (is.na(rc[i])) next
+        ra <- anchor(rc[i])
+        for (pp in c(p1[i], p2[i])) {
+          if (is.na(pp)) next
+          pa <- anchor(pp)
+          segs[[length(segs) + 1L]] <- data.frame(
+            x = ra[1], y = ra[2], xend = pa[1], yend = pa[2],
+            freq = rets$freq[i], mean_gamma = rets$mean_gamma[i],
+            stringsAsFactors = FALSE)
+        }
+      }
     }
+    if (length(segs)) retseg <- do.call(rbind, segs)
   }
   list(backbone = backbone, reticulations = retseg)
 }

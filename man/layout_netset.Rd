@@ -11,7 +11,11 @@ layout_netset(
   mode = "cladogram",
   scale_x = TRUE,
   jitter = 0,
-  consistent_only = TRUE
+  consistent_only = TRUE,
+  outgroup = NULL,
+  outgroup_position = c("top", "bottom"),
+  snap_to_consensus = FALSE,
+  consensus_p = 0.5
 )
 }
 \arguments{
@@ -31,6 +35,10 @@ layout_netset(
 to separate exactly overlapping edges; 0 (default) disables it.}
 
 \item{consistent_only}{If TRUE (default), drop networks with \code{taxa_ok = FALSE}.}
+
+\item{outgroup, outgroup_position, snap_to_consensus, consensus_p}{Forwarded to
+\link{consensus_tip_order} when \code{tip_order} is NULL (outgroup pinning and
+consensus-topology crossing reduction).}
 }
 \value{
 A data.frame of segments (as \link{layout_network}) with an added integer

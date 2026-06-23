@@ -107,6 +107,18 @@ different networks are "the same event" iff their (donor-clade, recipient-clade)
 match. Event frequency drives color/opacity. The ambiguities here are real and tracked
 in §9 (Open questions).
 
+**Direction-agnostic identity (undirected hybrid layout).** When reticulation
+*direction* is unstable across the set, the directed key splits one biological event into
+two (donor/recipient swapped). `reticulation_frequencies(directed = FALSE)` therefore
+offers an alternative key: the **recipient clade** plus the **unordered pair of its two
+parent lineages** — the donor clade and the backbone-sibling clade (the tips below the
+hybrid's tree-parent, minus the recipient). Under this key
+`((A,(B)#H1),(C,#H1))` and `((C,(B)#H1),(A,#H1))` are the same event
+(`B : A + C`). `densinet(reticulation_style = "hybrid")` renders it as two undirected
+dotted edges into the hybrid node (no arrowhead), matching the single-network hybrid view.
+Endpoints can be anchored a fraction along the subtending branch (`ret_edge_frac`) so they
+attach to the edge rather than emanate from the tip/MRCA node.
+
 ### D5 — Emphasize backbone and reticulations equally
 The discrepancy encoding maps support onto visual channels for **both** layers:
 backbone clade/split frequency *and* reticulation-event frequency drive opacity/color.

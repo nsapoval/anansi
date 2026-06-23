@@ -125,6 +125,13 @@ to_rectangular <- function(tree) {
 #' @param tip_order Optional explicit tip order; otherwise computed via
 #'   [consensus_tip_order] using `method`.
 #' @param method Tip-ordering method (see [consensus_tip_order]); default `"mode"`.
+#' @param outgroup Optional taxa to pin to one end of the figure (see
+#'   [consensus_tip_order]).
+#' @param outgroup_position `"top"` (default) or `"bottom"` placement for
+#'   `outgroup`.
+#' @param snap_to_consensus If TRUE, snap the shared tip order to the consensus
+#'   topology so the consensus backbone has no crossings (see
+#'   [consensus_tip_order]). Default FALSE.
 #' @param mode `"cladogram"` (default) or `"phylogram"`.
 #' @param layout `"slanted"` (default) or `"rectangular"` for the cloud backbone.
 #' @param keep Optional character vector of taxa; if given, all networks are
@@ -146,7 +153,15 @@ to_rectangular <- function(tree) {
 #' @param consensus_ret If TRUE (default), draw consensus reticulation arrows.
 #' @param consensus_ret_min Minimum event frequency to draw a consensus
 #'   reticulation arrow (default 0.1).
-#' @param consensus_ret_color Color of consensus reticulation arrows.
+#' @param consensus_ret_color Color of consensus reticulation arrows/edges.
+#' @param ret_edge_frac Fraction (0-1) of the way from each reticulation
+#'   endpoint's node toward its parent at which to anchor the edge, so
+#'   reticulations attach along a branch rather than at the tip/MRCA node.
+#'   Default 0.1; 0 reproduces at-the-node anchoring.
+#' @param reticulation_style `"arrow"` (default) draws each consensus
+#'   reticulation as a directed donor -> recipient arrow; `"hybrid"` keys events
+#'   direction-agnostically and draws two undirected dotted edges into the hybrid
+#'   node (so direction-unstable reticulations display identically).
 #' @param tip_labels Whether to draw tip labels.
 #' @param tip_size,tip_offset Tip-label text size and x-offset past the tips.
 #' @param consistent_only If TRUE (default), drop networks with divergent taxa.
@@ -160,6 +175,8 @@ to_rectangular <- function(tree) {
 #' p <- densinet(anansi_netset(list(a, b)), method = "first")
 #' @export
 densinet <- function(x, tip_order = NULL, method = "mode",
+                     outgroup = NULL, outgroup_position = c("top", "bottom"),
+                     snap_to_consensus = FALSE,
                      mode = c("cladogram", "phylogram"),
                      layout = c("slanted", "rectangular"),
                      keep = NULL, top_n = NULL, top_by = NULL,
@@ -170,7 +187,8 @@ densinet <- function(x, tip_order = NULL, method = "mode",
                      color_by_support = TRUE, consensus_color = "black",
                      consensus_linewidth = 0.7,
                      consensus_ret = TRUE, consensus_ret_min = 0.1,
-                     consensus_ret_color = "darkred",
+                     consensus_ret_color = "darkred", ret_edge_frac = 0.1,
+                     reticulation_style = c("arrow", "hybrid"),
                      tip_labels = TRUE, tip_size = 3, tip_offset = 0.02,
                      consistent_only = TRUE, title = NULL) {
   if (!inherits(x, "anansi_netset")) {
@@ -178,12 +196,17 @@ densinet <- function(x, tip_order = NULL, method = "mode",
   }
   mode <- match.arg(mode)
   layout <- match.arg(layout)
+  outgroup_position <- match.arg(outgroup_position)
+  reticulation_style <- match.arg(reticulation_style)
   if (!is.null(keep)) x <- restrict_taxa(x, keep)
   if (!is.null(top_n)) x <- top_networks(x, top_n, by = top_by)
 
   seg <- layout_netset(x, tip_order = tip_order, method = method, mode = mode,
                        scale_x = TRUE, jitter = jitter,
-                       consistent_only = consistent_only)
+                       consistent_only = consistent_only, outgroup = outgroup,
+                       outgroup_position = outgroup_position,
+                       snap_to_consensus = snap_to_consensus,
+                       consensus_p = consensus_p)
   ord <- attr(seg, "tip_order")
   N <- length(unique(seg$.net))
   if (is.null(alpha)) alpha <- max(1 / N, 0.005)
@@ -209,9 +232,11 @@ densinet <- function(x, tip_order = NULL, method = "mode",
 
   # --- consensus overlay (drawn slanted on top, regardless of cloud layout) ---
   if (consensus) {
-    cons <- consensus_network(x, p = consensus_p)
+    cons <- consensus_network(x, p = consensus_p,
+                              directed = reticulation_style == "arrow")
     cs <- consensus_segments(cons, tip_order = ord, mode = mode,
-                             ret_min = consensus_ret_min)
+                             ret_min = consensus_ret_min,
+                             ret_edge_frac = ret_edge_frac)
     if (color_by_support) {
       p <- p +
         ggplot2::geom_segment(
@@ -227,12 +252,22 @@ densinet <- function(x, tip_order = NULL, method = "mode",
         color = consensus_color, linewidth = consensus_linewidth)
     }
     if (consensus_ret && !is.null(cs$reticulations) && nrow(cs$reticulations)) {
-      p <- p + ggplot2::geom_segment(
-        data = cs$reticulations,
-        ggplot2::aes(x = x, y = y, xend = xend, yend = yend),
-        color = consensus_ret_color, linewidth = consensus_linewidth,
-        linetype = ret_linetype,
-        arrow = grid::arrow(length = grid::unit(0.1, "inches"), type = "closed"))
+      if (reticulation_style == "hybrid") {
+        # Undirected: two dotted edges into the hybrid node, no arrowhead, so
+        # direction-unstable reticulations read (and aggregate) identically.
+        p <- p + ggplot2::geom_segment(
+          data = cs$reticulations,
+          ggplot2::aes(x = x, y = y, xend = xend, yend = yend),
+          color = consensus_ret_color, linewidth = consensus_linewidth,
+          linetype = ret_linetype)
+      } else {
+        p <- p + ggplot2::geom_segment(
+          data = cs$reticulations,
+          ggplot2::aes(x = x, y = y, xend = xend, yend = yend),
+          color = consensus_ret_color, linewidth = consensus_linewidth,
+          linetype = ret_linetype,
+          arrow = grid::arrow(length = grid::unit(0.1, "inches"), type = "closed"))
+      }
     }
   }
 

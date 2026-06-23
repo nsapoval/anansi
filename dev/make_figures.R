@@ -84,4 +84,23 @@ save(densinet(lac, method = "mds", jitter = 0.015, top_n = 80,
               title = "Lacerta_agilis (top 80): cladogram with jitter"),
      "09_lacerta_jitter.png")
 
+# 10. New layout/rendering options (top 50 by pseudo-likelihood, as in fig 07)
+outg <- c("Zootoca_vivipara", "Lacerta_agilis")
+
+save(densinet(lac, method = "mds", top_n = 50, outgroup = outg,
+              outgroup_position = "top",
+              title = "Lacerta_agilis: top 50 + outgroup pinned (top)"),
+     "10_lacerta_outgroup.png")
+
+save(densinet(lac, method = "mds", top_n = 50, outgroup = outg,
+              outgroup_position = "top", snap_to_consensus = TRUE,
+              title = "Lacerta_agilis: top 50 + outgroup + snap_to_consensus"),
+     "11_lacerta_snap.png")
+
+save(densinet(lac, method = "mds", top_n = 50, outgroup = outg,
+              outgroup_position = "top", snap_to_consensus = TRUE,
+              reticulation_style = "hybrid",
+              title = "Lacerta_agilis: top 50 + undirected hybrid reticulations"),
+     "12_lacerta_hybrid.png")
+
 cat("Done.\n")

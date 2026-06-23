@@ -7,7 +7,11 @@
 consensus_tip_order(
   x,
   method = c("mode", "mds", "closest_leaf", "first", "manual"),
-  order = NULL
+  order = NULL,
+  outgroup = NULL,
+  outgroup_position = c("top", "bottom"),
+  snap_to_consensus = FALSE,
+  consensus_p = 0.5
 )
 }
 \arguments{
@@ -18,6 +22,20 @@ consensus_tip_order(
 heuristic), \code{"first"} (order of the first network), or \code{"manual"}.}
 
 \item{order}{For \code{method = "manual"}, the explicit tip order (character).}
+
+\item{outgroup}{Optional character vector of taxa to pin to one end of the
+order (kept contiguous, in their existing relative order).}
+
+\item{outgroup_position}{Where to pin the \code{outgroup}: \code{"top"} (default) or
+\code{"bottom"} of the figure.}
+
+\item{snap_to_consensus}{If TRUE, rotate the majority-rule consensus tree to
+match the chosen order as closely as its topology allows
+(\link[ape:rotate]{ape::rotateConstr}) and return that order instead, so every consensus
+clade is contiguous (no crossings in the consensus backbone). Default FALSE.}
+
+\item{consensus_p}{Majority threshold for the consensus tree used by
+\code{snap_to_consensus} (default 0.5).}
 }
 \value{
 A character vector of taxa in the chosen order.

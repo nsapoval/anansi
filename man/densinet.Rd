@@ -8,6 +8,9 @@ densinet(
   x,
   tip_order = NULL,
   method = "mode",
+  outgroup = NULL,
+  outgroup_position = c("top", "bottom"),
+  snap_to_consensus = FALSE,
   mode = c("cladogram", "phylogram"),
   layout = c("slanted", "rectangular"),
   keep = NULL,
@@ -28,6 +31,8 @@ densinet(
   consensus_ret = TRUE,
   consensus_ret_min = 0.1,
   consensus_ret_color = "darkred",
+  ret_edge_frac = 0.1,
+  reticulation_style = c("arrow", "hybrid"),
   tip_labels = TRUE,
   tip_size = 3,
   tip_offset = 0.02,
@@ -42,6 +47,16 @@ densinet(
 \link{consensus_tip_order} using \code{method}.}
 
 \item{method}{Tip-ordering method (see \link{consensus_tip_order}); default \code{"mode"}.}
+
+\item{outgroup}{Optional taxa to pin to one end of the figure (see
+\link{consensus_tip_order}).}
+
+\item{outgroup_position}{\code{"top"} (default) or \code{"bottom"} placement for
+\code{outgroup}.}
+
+\item{snap_to_consensus}{If TRUE, snap the shared tip order to the consensus
+topology so the consensus backbone has no crossings (see
+\link{consensus_tip_order}). Default FALSE.}
 
 \item{mode}{\code{"cladogram"} (default) or \code{"phylogram"}.}
 
@@ -79,7 +94,17 @@ clade support (grey -> \code{consensus_color}).}
 \item{consensus_ret_min}{Minimum event frequency to draw a consensus
 reticulation arrow (default 0.1).}
 
-\item{consensus_ret_color}{Color of consensus reticulation arrows.}
+\item{consensus_ret_color}{Color of consensus reticulation arrows/edges.}
+
+\item{ret_edge_frac}{Fraction (0-1) of the way from each reticulation
+endpoint's node toward its parent at which to anchor the edge, so
+reticulations attach along a branch rather than at the tip/MRCA node.
+Default 0.1; 0 reproduces at-the-node anchoring.}
+
+\item{reticulation_style}{\code{"arrow"} (default) draws each consensus
+reticulation as a directed donor -> recipient arrow; \code{"hybrid"} keys events
+direction-agnostically and draws two undirected dotted edges into the hybrid
+node (so direction-unstable reticulations display identically).}
 
 \item{tip_labels}{Whether to draw tip labels.}
 

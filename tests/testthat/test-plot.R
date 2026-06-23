@@ -29,3 +29,14 @@ test_that("densinet renders to a file without error", {
 test_that("densinet rejects non-netset input", {
   expect_error(densinet(na), "anansi_netset")
 })
+
+test_that("densinet supports outgroup, snap, and hybrid reticulation style", {
+  expect_s3_class(densinet(ns, method = "mds", outgroup = "D",
+                           outgroup_position = "top"), "ggplot")
+  expect_s3_class(densinet(ns, method = "mds", snap_to_consensus = TRUE), "ggplot")
+  p <- densinet(ns, method = "first", reticulation_style = "hybrid")
+  expect_s3_class(p, "ggplot")
+  # hybrid style draws dotted edges, no arrowhead layer
+  arrows <- vapply(p$layers, function(L) !is.null(L$geom_params$arrow), logical(1))
+  expect_false(any(arrows))
+})

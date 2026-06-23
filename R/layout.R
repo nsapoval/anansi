@@ -73,6 +73,38 @@ order_mode <- function(nets, ref) {
   strsplit(best, "\t", fixed = TRUE)[[1]]
 }
 
+# Move outgroup taxa to one end of `order`, kept contiguous and in their
+# current relative order. position "top" -> end of the vector (rendered at the
+# top, since y = match(label, order)); "bottom" -> start. Internal.
+pin_outgroup <- function(order, outgroup, position = c("top", "bottom")) {
+  position <- match.arg(position)
+  outgroup <- as.character(outgroup)
+  miss <- setdiff(outgroup, order)
+  if (length(miss)) {
+    rlang::abort(sprintf("outgroup taxa not in the taxon set: %s",
+                         paste(miss, collapse = ", ")))
+  }
+  og  <- order[order %in% outgroup]    # outgroup, current relative order
+  ing <- order[!order %in% outgroup]   # ingroup, order preserved
+  if (position == "top") c(ing, og) else c(og, ing)
+}
+
+# Snap a seed tip order to the majority-rule consensus topology: build the
+# consensus of the (consistent) backbone trees, rotate it to match `seed` as
+# closely as the topology allows (ape::rotateConstr), then read off its
+# clade-contiguous tip order. Guarantees no crossings in the consensus tree.
+# Internal.
+snap_order_to_consensus <- function(nets, ref, seed, p = 0.5) {
+  ok <- vapply(nets, function(n) setequal(ensure_evonet(n)$tip.label, ref),
+               logical(1))
+  nets <- nets[ok]
+  if (!length(nets)) return(seed)
+  trees <- lapply(nets, function(n) backbone_tree(ensure_evonet(n)))
+  class(trees) <- "multiPhylo"
+  cons <- ape::consensus(trees, p = p, rooted = TRUE)
+  network_tip_order(ape::rotateConstr(cons, seed))
+}
+
 #' Choose a shared tip ordering for a set of networks
 #'
 #' Derives a single linear tip order (applied to every network so they overlay)
@@ -83,6 +115,16 @@ order_mode <- function(nets, ref) {
 #'   (1-D MDS of mean leaf distance), `"closest_leaf"` (DensiTree greedy
 #'   heuristic), `"first"` (order of the first network), or `"manual"`.
 #' @param order For `method = "manual"`, the explicit tip order (character).
+#' @param outgroup Optional character vector of taxa to pin to one end of the
+#'   order (kept contiguous, in their existing relative order).
+#' @param outgroup_position Where to pin the `outgroup`: `"top"` (default) or
+#'   `"bottom"` of the figure.
+#' @param snap_to_consensus If TRUE, rotate the majority-rule consensus tree to
+#'   match the chosen order as closely as its topology allows
+#'   ([ape::rotateConstr]) and return that order instead, so every consensus
+#'   clade is contiguous (no crossings in the consensus backbone). Default FALSE.
+#' @param consensus_p Majority threshold for the consensus tree used by
+#'   `snap_to_consensus` (default 0.5).
 #' @return A character vector of taxa in the chosen order.
 #' @examples
 #' a <- parse_network("(((A:1,B:1):1,(C:1)#H1:1::0.6):1,(D:1,#H1:1::0.4):1);")
@@ -92,23 +134,40 @@ order_mode <- function(nets, ref) {
 consensus_tip_order <- function(x,
                                 method = c("mode", "mds", "closest_leaf",
                                            "first", "manual"),
-                                order = NULL) {
+                                order = NULL, outgroup = NULL,
+                                outgroup_position = c("top", "bottom"),
+                                snap_to_consensus = FALSE, consensus_p = 0.5) {
   method <- match.arg(method)
+  outgroup_position <- match.arg(outgroup_position)
+  nets <- if (inherits(x, "anansi_netset")) x$networks else x
+
   if (method == "manual") {
     if (is.null(order)) rlang::abort("method = 'manual' requires `order`.")
-    return(as.character(order))
+    base <- as.character(order)
+    ref  <- if (inherits(x, "anansi_netset")) x$taxa else sort(base)
+  } else {
+    if (!is.list(nets) || length(nets) == 0L) {
+      rlang::abort("Expected an anansi_netset or a non-empty list of networks.")
+    }
+    ref <- if (inherits(x, "anansi_netset")) x$taxa
+           else sort(ensure_evonet(nets[[1]])$tip.label)
+    base <- switch(method,
+      first = network_tip_order(nets[[1]]),
+      mode  = order_mode(nets, ref),
+      mds   = order_mds(avg_tip_distance(nets, ref)),
+      closest_leaf = order_closest_leaf(avg_tip_distance(nets, ref)))
   }
-  nets <- if (inherits(x, "anansi_netset")) x$networks else x
-  if (!is.list(nets) || length(nets) == 0L) {
-    rlang::abort("Expected an anansi_netset or a non-empty list of networks.")
+
+  if (!is.null(outgroup)) base <- pin_outgroup(base, outgroup, outgroup_position)
+
+  if (snap_to_consensus) {
+    if (!is.list(nets) || length(nets) == 0L) {
+      rlang::abort("snap_to_consensus requires an anansi_netset or non-empty list of networks.")
+    }
+    base <- tryCatch(snap_order_to_consensus(nets, ref, base, p = consensus_p),
+                     error = function(e) base)
   }
-  ref <- if (inherits(x, "anansi_netset")) x$taxa
-         else sort(ensure_evonet(nets[[1]])$tip.label)
-  switch(method,
-    first = network_tip_order(nets[[1]]),
-    mode  = order_mode(nets, ref),
-    mds   = order_mds(avg_tip_distance(nets, ref)),
-    closest_leaf = order_closest_leaf(avg_tip_distance(nets, ref)))
+  base
 }
 
 # --- per-network layout ----------------------------------------------------
@@ -228,6 +287,9 @@ layout_network <- function(net, tip_order, mode = c("cladogram", "phylogram")) {
 #' @param jitter Max per-network x-offset (evenly spread over `[-jitter, jitter]`)
 #'   to separate exactly overlapping edges; 0 (default) disables it.
 #' @param consistent_only If TRUE (default), drop networks with `taxa_ok = FALSE`.
+#' @param outgroup,outgroup_position,snap_to_consensus,consensus_p Forwarded to
+#'   [consensus_tip_order] when `tip_order` is NULL (outgroup pinning and
+#'   consensus-topology crossing reduction).
 #' @return A data.frame of segments (as [layout_network]) with an added integer
 #'   `.net` column; the chosen order is attached as `attr(., "tip_order")`.
 #' @examples
@@ -238,7 +300,9 @@ layout_network <- function(net, tip_order, mode = c("cladogram", "phylogram")) {
 #' @export
 layout_netset <- function(x, tip_order = NULL, method = "mode",
                           mode = "cladogram", scale_x = TRUE, jitter = 0,
-                          consistent_only = TRUE) {
+                          consistent_only = TRUE, outgroup = NULL,
+                          outgroup_position = c("top", "bottom"),
+                          snap_to_consensus = FALSE, consensus_p = 0.5) {
   if (!inherits(x, "anansi_netset")) rlang::abort("layout_netset() needs an anansi_netset.")
   ns <- x
   if (consistent_only && !all(ns$taxa_ok)) {
@@ -247,7 +311,12 @@ layout_netset <- function(x, tip_order = NULL, method = "mode",
     ns <- ns[ns$taxa_ok]
   }
   if (length(ns$networks) == 0L) rlang::abort("No networks left to lay out.")
-  if (is.null(tip_order)) tip_order <- consensus_tip_order(ns, method = method)
+  if (is.null(tip_order)) {
+    tip_order <- consensus_tip_order(ns, method = method, outgroup = outgroup,
+                                     outgroup_position = outgroup_position,
+                                     snap_to_consensus = snap_to_consensus,
+                                     consensus_p = consensus_p)
+  }
 
   segs <- lapply(seq_along(ns$networks), function(i) {
     s <- layout_network(ns$networks[[i]], tip_order = tip_order, mode = mode)

@@ -10,6 +10,12 @@ ns <- anansi_netset(list(n1, n2))
 n3 <- parse_network("(((A:1,C:1):1,(B:1)#H1:1::0.6):1,(D:1,#H1:1::0.4):1);")
 ns3 <- anansi_netset(list(n1, n2, n3))
 
+# A direction-unstable pair: same hybrid B, but its two parent lineages (A and C)
+# swap roles of backbone-sibling vs donor. Identical undirected, opposite directed.
+u1 <- parse_network("((A,(B)#H1),(C,#H1));")
+u2 <- parse_network("((C,(B)#H1),(A,#H1));")
+uns <- anansi_netset(list(u1, u2))
+
 test_that("clade_frequencies returns valid frequencies", {
   cf <- clade_frequencies(ns)
   expect_s3_class(cf, "data.frame")
@@ -58,4 +64,34 @@ test_that("densinet draws the consensus overlay", {
 
   # consensus = FALSE still works
   expect_s3_class(densinet(ns3, method = "first", consensus = FALSE), "ggplot")
+})
+
+test_that("directed = FALSE merges direction-swapped reticulation events", {
+  d <- reticulation_frequencies(uns, directed = TRUE)
+  expect_equal(nrow(d), 2L)                 # two distinct directed events (A->B, C->B)
+  u <- reticulation_frequencies(uns, directed = FALSE)
+  expect_equal(nrow(u), 1L)                 # collapsed into one
+  expect_equal(u$count, 2L)
+  expect_equal(u$freq, 1)
+  expect_equal(u$recipient, "B")
+  expect_setequal(c(u$parent1, u$parent2), c("A", "C"))
+})
+
+test_that("ret_edge_frac anchors reticulations off the node", {
+  ord <- consensus_tip_order(ns, method = "first")
+  cons <- consensus_network(ns)
+  cs0 <- consensus_segments(cons, ord, ret_edge_frac = 0)
+  csf <- consensus_segments(cons, ord, ret_edge_frac = 0.3)
+  cols <- c("x", "y", "xend", "yend")
+  expect_false(isTRUE(all.equal(cs0$reticulations[, cols],
+                                csf$reticulations[, cols])))
+})
+
+test_that("undirected hybrid consensus_segments returns two edges per event", {
+  ord <- consensus_tip_order(uns, method = "first")
+  cs <- consensus_segments(consensus_network(uns, directed = FALSE), ord)
+  expect_equal(nrow(cs$reticulations), 2L)            # one event -> two dotted edges
+  # both edges meet at the recipient (shared start point)
+  starts <- unique(paste(cs$reticulations$x, cs$reticulations$y))
+  expect_length(starts, 1L)
 })

@@ -4,15 +4,19 @@
 \alias{reticulation_frequencies}
 \title{Reticulation-event frequencies across a set of networks}
 \usage{
-reticulation_frequencies(x)
+reticulation_frequencies(x, directed = TRUE)
 }
 \arguments{
 \item{x}{An \link{anansi_netset} (divergent networks are excluded).}
+
+\item{directed}{If TRUE (default), key by directed donor -> recipient. If
+FALSE, key by recipient + unordered parent pair (direction-agnostic).}
 }
 \value{
-A data.frame with \code{key}, \code{donor}, \code{recipient}, \code{count}, \code{freq} and
-\code{mean_gamma}, ordered by decreasing frequency. Zero rows if there are no
-reticulations.
+A data.frame ordered by decreasing frequency, with \code{key}, \code{count},
+\code{freq}, \code{mean_gamma} and, for \code{directed = TRUE}, \code{donor}/\code{recipient}, or for
+\code{directed = FALSE}, \code{recipient}/\code{parent1}/\code{parent2}. Zero rows if there are
+no reticulations.
 }
 \description{
 Keys each reticulation by the pair of backbone clades it connects -- the
@@ -20,6 +24,15 @@ donor clade (tips below the source node) and the recipient clade (tips below
 the hybrid node) -- so equivalent reticulations across networks are tallied
 together (see docs/DESIGN.md D4). Reports frequency and mean inheritance
 probability (gamma) per event.
+}
+\details{
+With \code{directed = FALSE}, events are instead keyed by the recipient clade plus
+the \emph{unordered} pair of its two parent lineages (the donor clade and the
+backbone-sibling clade). This collapses reticulations that differ only by
+which parent is the major (backbone) vs minor (reticulation) edge -- i.e.
+direction-unstable events such as \verb{((A,(B)#H1),(C,#H1))} and
+\verb{((C,(B)#H1),(A,#H1))} -- into a single event. Used by the undirected hybrid
+layout (see \link{densinet}).
 }
 \examples{
 a <- parse_network("(((A:1,B:1):1,(C:1)#H1:1::0.6):1,(D:1,#H1:1::0.4):1);")

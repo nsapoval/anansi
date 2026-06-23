@@ -61,3 +61,38 @@ test_that("divergent (taxa_ok = FALSE) networks are dropped with a warning", {
   mixed <- suppressWarnings(anansi_netset(list(na, nb, od)))
   expect_warning(layout_netset(mixed, method = "first"), "Dropping 1 network")
 })
+
+test_that("outgroup pinning moves outgroup taxa to the chosen end", {
+  top <- consensus_tip_order(ns, method = "mds", outgroup = "D",
+                             outgroup_position = "top")
+  expect_setequal(top, c("A", "B", "C", "D"))
+  expect_equal(top[length(top)], "D")               # top = end of the vector
+  bot <- consensus_tip_order(ns, method = "mds", outgroup = "D",
+                             outgroup_position = "bottom")
+  expect_equal(bot[1], "D")                          # bottom = start
+  og <- consensus_tip_order(ns, method = "mds", outgroup = c("C", "D"),
+                            outgroup_position = "top")
+  expect_setequal(og[(length(og) - 1L):length(og)], c("C", "D"))  # contiguous
+})
+
+test_that("outgroup pinning errors on taxa not in the set", {
+  expect_error(consensus_tip_order(ns, method = "first", outgroup = "Z"),
+               "not in the taxon set")
+})
+
+test_that("snap_to_consensus yields a consensus-contiguous (crossing-free) order", {
+  t1 <- parse_network("(((A:1,B:1):1,C:1):1,D:1);")
+  t2 <- parse_network("(((A:1,B:1):1,C:1):1,D:1);")
+  t3 <- parse_network("(((A:1,C:1):1,B:1):1,D:1);")
+  nss <- anansi_netset(list(t1, t2, t3))
+  ord <- consensus_tip_order(nss, method = "mds", snap_to_consensus = TRUE)
+  expect_setequal(ord, c("A", "B", "C", "D"))
+  tr <- consensus_network(nss)$tree
+  dt <- descendant_tips(tr)
+  ntip <- length(tr$tip.label)
+  for (nd in (ntip + 1L):(ntip + tr$Nnode)) {
+    pos <- sort(match(dt[[nd]], ord))
+    # every consensus clade occupies a contiguous run -> no crossings
+    expect_equal(pos, seq.int(pos[1], pos[length(pos)]))
+  }
+})

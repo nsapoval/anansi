@@ -4,7 +4,7 @@
 \alias{consensus_network}
 \title{Consensus ("root-canal") network for a set of networks}
 \usage{
-consensus_network(x, p = 0.5, ret_support_min = 0)
+consensus_network(x, p = 0.5, ret_support_min = 0, directed = TRUE)
 }
 \arguments{
 \item{x}{An \link{anansi_netset} (divergent networks are excluded).}
@@ -13,10 +13,15 @@ consensus_network(x, p = 0.5, ret_support_min = 0)
 
 \item{ret_support_min}{Keep only reticulation events with \verb{freq >=} this
 (default 0, keep all).}
+
+\item{directed}{Reticulation-event identity: \code{TRUE} (default) keys by directed
+donor -> recipient; \code{FALSE} keys direction-agnostically (recipient +
+unordered parent pair). See \link{reticulation_frequencies}.}
 }
 \value{
 An \code{anansi_consensus}: \code{tree} (the consensus \code{phylo}), \code{support}
-(named by internal node), \code{reticulations} (data.frame), \code{N}, \code{p}, \code{taxa}.
+(named by internal node), \code{reticulations} (data.frame), \code{directed}, \code{N},
+\code{p}, \code{taxa}.
 }
 \description{
 Builds a majority-rule consensus backbone tree (via \link[ape:consensus]{ape::consensus}) with
