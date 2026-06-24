@@ -36,6 +36,18 @@ densinet(
   tip_labels = TRUE,
   tip_size = 3,
   tip_offset = 0.02,
+  color_by = NULL,
+  color_palette = "viridis",
+  color_direction = 1,
+  color_low = "grey80",
+  color_high = "firebrick",
+  color_legend = NULL,
+  color_trim = NULL,
+  color_trim_action = c("clamp", "drop"),
+  backbone = NULL,
+  backbone_color = "black",
+  backbone_ret_color = "darkred",
+  backbone_linewidth = NULL,
   consistent_only = TRUE,
   title = NULL
 )
@@ -71,7 +83,8 @@ metadata column \code{top_by} (see \link{top_networks}) before plotting.}
 \item{tree_color, ret_color}{Colors for the backbone and reticulation clouds.}
 
 \item{alpha, ret_alpha}{Per-edge cloud opacities; default to roughly \code{1/N} and
-\code{2/N} so consensus accumulates while conflict stays faint.}
+\code{2/N} so consensus accumulates while conflict stays faint. When \code{color_by}
+is set, \code{alpha} instead defaults to \code{max(3/N, 0.25)} so the gradient reads.}
 
 \item{linewidth}{Cloud edge width.}
 
@@ -109,6 +122,41 @@ node (so direction-unstable reticulations display identically).}
 \item{tip_labels}{Whether to draw tip labels.}
 
 \item{tip_size, tip_offset}{Tip-label text size and x-offset past the tips.}
+
+\item{color_by}{Optional name of a numeric metadata column (see
+\link{read_networks_csv}); when set, each tree in the cloud is colored by its
+value along a gradient. To keep a single color scale, the scaffold is then
+drawn solid (consensus \code{color_by_support} is auto-disabled).}
+
+\item{color_palette}{Gradient for \code{color_by}: one of the viridis options
+\code{"viridis"} (default), \code{"magma"}, \code{"plasma"}, \code{"inferno"}, \code{"cividis"}, or
+\code{"gradient"} for a two-color \code{color_low} -> \code{color_high} ramp.}
+
+\item{color_direction}{Viridis direction (\code{1} or \code{-1}); ignored for
+\code{"gradient"}.}
+
+\item{color_low, color_high}{Endpoints of the \code{"gradient"} palette.}
+
+\item{color_legend}{Legend title for \code{color_by} (defaults to the column name).}
+
+\item{color_trim}{Strong-outlier handling for \code{color_by}. A non-negative IQR
+multiplier \code{k}: per-network values outside the Tukey fences
+\verb{[Q1 - k*IQR, Q3 + k*IQR]} are treated as outliers (\code{3} ~ "strong", \code{1.5} ~
+"mild"). \code{NULL} (default) disables trimming.}
+
+\item{color_trim_action}{What to do with \code{color_trim} outliers: \code{"clamp"}
+(default) keeps every tree but pins the color scale to the robust range so
+outliers saturate at the end color; \code{"drop"} removes the outlier networks
+from the overlay.}
+
+\item{backbone}{Optional explicit scaffold drawn solid in place of the
+consensus backbone: a Newick / extended-Newick string, \link{anansi_network},
+\code{evonet}, or \code{phylo} over (a subset of) the figure's taxa. If it is a
+network, its reticulation edges are drawn too.}
+
+\item{backbone_color, backbone_ret_color, backbone_linewidth}{Colors of the
+explicit \code{backbone}'s tree and reticulation edges, and their width (width
+defaults to \code{consensus_linewidth}).}
 
 \item{consistent_only}{If TRUE (default), drop networks with divergent taxa.}
 

@@ -54,7 +54,15 @@ key_controls <- tagList(
   selectizeInput("keep", "Keep taxa (subset; blank = all)",
                  choices = character(0), multiple = TRUE),
   textInput("title", "Title (blank = auto)", ""),
-  checkboxInput("tip_labels", "Show tip labels", TRUE)
+  checkboxInput("tip_labels", "Show tip labels", TRUE),
+  selectInput("color_by", "Colour cloud by value", choices = c("(none)" = "")),
+  selectInput("color_palette", "Cloud palette",
+              c("viridis", "magma", "plasma", "inferno", "cividis", "gradient")),
+  numericInput("color_trim", "Trim value outliers (IQR x; blank = off)", NA,
+               min = 0, step = 0.5),
+  radioButtons("color_trim_action", "Outlier action", c("clamp", "drop"),
+               inline = TRUE),
+  textInput("backbone", "Explicit backbone (Newick; blank = consensus)", "")
 )
 
 advanced_controls <- tagList(
@@ -79,7 +87,11 @@ advanced_controls <- tagList(
   colorInput("tree_color", "Backbone cloud colour", "steelblue"),
   colorInput("ret_color", "Reticulation cloud colour", "firebrick"),
   colorInput("consensus_color", "Consensus backbone colour", "black"),
-  colorInput("consensus_ret_color", "Consensus reticulation colour", "darkred")
+  colorInput("consensus_ret_color", "Consensus reticulation colour", "darkred"),
+  colorInput("color_low", "Gradient low colour (palette = gradient)", "grey80"),
+  colorInput("color_high", "Gradient high colour (palette = gradient)", "firebrick"),
+  colorInput("backbone_color", "Explicit backbone colour", "black"),
+  colorInput("backbone_ret_color", "Explicit backbone reticulation colour", "darkred")
 )
 
 advanced_panel <- if (has_bslib) {
@@ -175,6 +187,7 @@ server <- function(input, output, session) {
     num_cols <- if (!is.null(ns$meta))
       names(ns$meta)[vapply(ns$meta, is.numeric, logical(1))] else character(0)
     updateSelectInput(session, "top_by", choices = c("(auto)" = "", num_cols))
+    updateSelectInput(session, "color_by", choices = c("(none)" = "", num_cols))
   })
 
   output$summary <- renderText({
@@ -199,7 +212,12 @@ server <- function(input, output, session) {
     alpha = input$alpha, ret_alpha = input$ret_alpha,
     ret_linetype = input$ret_linetype, tree_color = input$tree_color,
     ret_color = input$ret_color, consensus_color = input$consensus_color,
-    consensus_ret_color = input$consensus_ret_color))
+    consensus_ret_color = input$consensus_ret_color,
+    color_by = input$color_by, color_palette = input$color_palette,
+    color_trim = input$color_trim, color_trim_action = input$color_trim_action,
+    color_low = input$color_low, color_high = input$color_high,
+    backbone = input$backbone, backbone_color = input$backbone_color,
+    backbone_ret_color = input$backbone_ret_color))
 
   plot_obj <- reactive({
     ns <- rv$netset

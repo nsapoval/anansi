@@ -316,8 +316,12 @@ layout_network <- function(net, tip_order, mode = c("cladogram", "phylogram")) {
 #' @param outgroup,outgroup_position,snap_to_consensus,consensus_p Forwarded to
 #'   [consensus_tip_order] when `tip_order` is NULL (outgroup pinning and
 #'   consensus-topology crossing reduction).
+#' @param color_by Optional name of a numeric column in `x$meta`; when given,
+#'   every segment gains a `.value` column carrying its network's value (aligned
+#'   by the same filtering used here), so the cloud can be colored by a gradient.
 #' @return A data.frame of segments (as [layout_network]) with an added integer
-#'   `.net` column; the chosen order is attached as `attr(., "tip_order")`.
+#'   `.net` column (and a `.value` column when `color_by` is set); the chosen
+#'   order is attached as `attr(., "tip_order")`.
 #' @examples
 #' a <- parse_network("(((A:1,B:1):1,(C:1)#H1:1::0.6):1,(D:1,#H1:1::0.4):1);")
 #' b <- parse_network("(((A:1,C:1):1,(B:1)#H1:1::0.6):1,(D:1,#H1:1::0.4):1);")
@@ -328,7 +332,8 @@ layout_netset <- function(x, tip_order = NULL, method = "mode",
                           mode = "cladogram", scale_x = TRUE, jitter = 0,
                           consistent_only = TRUE, outgroup = NULL,
                           outgroup_position = c("top", "bottom"),
-                          snap_to_consensus = FALSE, consensus_p = 0.5) {
+                          snap_to_consensus = FALSE, consensus_p = 0.5,
+                          color_by = NULL) {
   if (!inherits(x, "anansi_netset")) rlang::abort("layout_netset() needs an anansi_netset.")
   ns <- x
   if (consistent_only && !all(ns$taxa_ok)) {
@@ -337,6 +342,19 @@ layout_netset <- function(x, tip_order = NULL, method = "mode",
     ns <- ns[ns$taxa_ok]
   }
   if (length(ns$networks) == 0L) rlang::abort("No networks left to lay out.")
+  # `ns$meta` is subset alongside `ns$networks`, so a per-network value indexes
+  # by the same `i` that becomes `.net` below -- keeping `.value` aligned.
+  if (!is.null(color_by)) {
+    if (is.null(ns$meta) || !color_by %in% names(ns$meta)) {
+      rlang::abort(sprintf("color_by = \"%s\" is not a metadata column (have: %s).",
+                           color_by,
+                           if (is.null(ns$meta)) "none"
+                           else paste(names(ns$meta), collapse = ", ")))
+    }
+    if (!is.numeric(ns$meta[[color_by]])) {
+      rlang::abort(sprintf("color_by column \"%s\" must be numeric.", color_by))
+    }
+  }
   if (is.null(tip_order)) {
     tip_order <- consensus_tip_order(ns, method = method, outgroup = outgroup,
                                      outgroup_position = outgroup_position,
@@ -347,6 +365,7 @@ layout_netset <- function(x, tip_order = NULL, method = "mode",
   segs <- lapply(seq_along(ns$networks), function(i) {
     s <- layout_network(ns$networks[[i]], tip_order = tip_order, mode = mode)
     s$.net <- i
+    if (!is.null(color_by)) s$.value <- ns$meta[[color_by]][i]
     s
   })
   out <- do.call(rbind, segs)

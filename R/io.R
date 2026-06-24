@@ -116,7 +116,7 @@ detect_network_col <- function(df, network_col = NULL) {
     }
     return(network_col)
   }
-  candidates <- c("network", "newick", "enewick")
+  candidates <- c("network", "newick", "enewick", "tree", "trees")
   for (cand in candidates) {
     hit <- names(df)[tolower(names(df)) == cand]
     if (length(hit)) return(hit[1])

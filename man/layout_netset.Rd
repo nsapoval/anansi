@@ -15,7 +15,8 @@ layout_netset(
   outgroup = NULL,
   outgroup_position = c("top", "bottom"),
   snap_to_consensus = FALSE,
-  consensus_p = 0.5
+  consensus_p = 0.5,
+  color_by = NULL
 )
 }
 \arguments{
@@ -39,10 +40,15 @@ to separate exactly overlapping edges; 0 (default) disables it.}
 \item{outgroup, outgroup_position, snap_to_consensus, consensus_p}{Forwarded to
 \link{consensus_tip_order} when \code{tip_order} is NULL (outgroup pinning and
 consensus-topology crossing reduction).}
+
+\item{color_by}{Optional name of a numeric column in \code{x$meta}; when given,
+every segment gains a \code{.value} column carrying its network's value (aligned
+by the same filtering used here), so the cloud can be colored by a gradient.}
 }
 \value{
 A data.frame of segments (as \link{layout_network}) with an added integer
-\code{.net} column; the chosen order is attached as \code{attr(., "tip_order")}.
+\code{.net} column (and a \code{.value} column when \code{color_by} is set); the chosen
+order is attached as \code{attr(., "tip_order")}.
 }
 \description{
 Applies \link{layout_network} to every network in the set using a common tip

@@ -1,0 +1,146 @@
+---
+title: "anansi example: Lacerta agilis gene trees coloured by coalescent-event count, over a reticulate backbone"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  fig.width = 9.5, fig.height = 6, dpi = 300
+)
+library(ggplot2)
+
+# Use the installed package if available, else load the source tree. This makes
+# the notebook work both as a dev example (knit from the repo) and standalone.
+if (requireNamespace("anansi", quietly = TRUE)) {
+  library(anansi)
+} else {
+  devtools::load_all(if (file.exists("DESCRIPTION")) "." else "..")
+}
+
+# Resolve the data path whether knit from the repo root or from notebooks/.
+data_path <- if (file.exists("data/Lacerta_agilis.coal_count.csv")) {
+  "data/Lacerta_agilis.coal_count.csv"
+} else {
+  "../data/Lacerta_agilis.coal_count.csv"
+}
+```
+
+## What this notebook does
+
+`data/Lacerta_agilis.coal_count.csv` holds **60,397 gene trees** over the same 15
+lizard taxa (*Lacerta agilis*, *Zootoca vivipara*, and 13 *Podarcis* species),
+each paired with a `coal_count`: the number of extra coalescent events the gene
+tree implies against a reference species tree (a per-tree measure of
+gene-tree/species-tree discordance).
+
+We overlay a sample of those gene trees in an anansi `densinet()` cloud and
+**colour every tree by its `coal_count`** along a viridis gradient, so regions of
+the topology that attract high-discordance trees stand out. Instead of the
+auto-computed consensus, we draw an **explicit reticulate backbone** --- a fixed
+species network with one hybridisation (`#H1`, the *vaucheri / bocagei /
+liolepis* clade) --- as the solid scaffold, including its reticulation edge.
+
+This is the new `densinet()` `color_by=` / `backbone=` functionality
+(cf. `data/tree_gradient_example.csv` for the minimal example).
+
+## The backbone network
+
+A single explicit species network over all 15 taxa, with one reticulation
+(`#H1`, inheritance probabilities `0.78` / `0.22`). It is drawn solid on top of
+the cloud; its tip order also defines the shared frame so the backbone has no
+crossings.
+
+```{r backbone}
+backbone_newick <- paste0(
+  "((Zootoca_vivipara:0.25677354575966416,Lacerta_agilis:1.2026356779081948)",
+  ":3.652813412086989,((Podarcis_siculus:1.7506392426102035,(Podarcis_muralis",
+  ":1.403553833676002,(((Podarcis_vaucheri:0.502986257623065,Podarcis_bocagei",
+  ":0.26654263440142406):0.4296356647363511,Podarcis_liolepis:0.4085003329998",
+  "631):2.078072177417302)#H1:0.48679011719881643::0.7801372331743996):2.36412",
+  "07761380794):0.13165823774692947,(((Podarcis_raffonei:1.762318387538715,Pod",
+  "arcis_filfolensis:1.72006539802722):0.648313161128423,((Podarcis_cretensis",
+  ":1.1511979431749633,Podarcis_erhardii:2.112986403832166):2.923160448928138,",
+  "(Podarcis_gaigeae:0.7886876562751788,Podarcis_melisellensis:4.4600345803368",
+  "51):1.2851840660974008):0.779918179244915):0.28118862288228014,(Podarcis_ti",
+  "liguerta:4.401142697353949,(Podarcis_pityusensis:0.6382977403331845,#H1:2.0",
+  "52600271490827::0.21986276682560038):1.1287658724958747):0.8889746643000185",
+  "):0.3065924576297063):4.470041758034534);")
+
+bnet <- parse_network(backbone_newick)
+bnet
+
+# Shared tip order taken from the backbone (so the scaffold draws crossing-free).
+bb_order <- consensus_tip_order(anansi_netset(list(bnet)), method = "first")
+```
+
+## Load and sample the gene trees
+
+The CSV has ~60k trees; parsing and overlaying all of them is slow and the figure
+saturates, so we draw a reproducible random sample (raise `n_sample`, or set it to
+the full count, to use more). The `coal_count` column becomes per-tree metadata
+that drives the colour gradient.
+
+```{r load}
+df <- utils::read.csv(data_path, stringsAsFactors = FALSE)
+nrow(df)
+summary(df$coal_count)
+
+n_sample <- 10000
+# n_sample <- nrow(df)
+set.seed(1)
+sub <- df[sample(nrow(df), min(n_sample, nrow(df))), ]
+
+ns <- anansi_netset(lapply(sub$tree, parse_network),
+                    meta = data.frame(coal_count = sub$coal_count))
+ns
+```
+
+## Gene-tree cloud coloured by coalescent count, over the reticulate backbone
+
+```{r plot}
+densinet(
+  ns,
+  tip_order   = bb_order,          # frame defined by the backbone
+  backbone    = bnet,              # explicit reticulate scaffold (drawn solid)
+  color_by    = "coal_count",      # colour each gene tree by its discordance
+  color_palette = "viridis",
+  color_trim  = 3,                 # clamp the gradient at Tukey 3xIQR fences so a
+  color_trim_action = "clamp",     #   few high-count trees don't flatten the rest
+  linewidth   = 0.25,
+  tip_size    = 2.6,
+  tip_offset  = 0.01,
+  title = "Lacerta agilis gene trees coloured by coalescent-event count"
+)
+```
+
+## Notes
+
+- `backbone = bnet` draws the supplied species **network** solid on top of the
+  cloud and *replaces* the consensus scaffold; because it is a network, its `#H1`
+  reticulation is drawn too (dashed `backbone_ret_color`, default dark red). When
+  a `backbone` is given the consensus overlay is skipped entirely.
+- `color_by = "coal_count"` shades every tree in the cloud by its value. With a
+  `color_by` gradient the cloud opacity defaults higher than the usual
+  consensus/discrepancy view so the colours read; tune it with `alpha=` (and
+  `linewidth=`). Swap `color_palette=` for `"magma"`/`"plasma"`/`"inferno"`/
+  `"cividis"`, or `"gradient"` with `color_low=`/`color_high=` for a custom ramp.
+- `color_trim = 3` filters **strong outliers** from the coloring via Tukey fences
+  on the per-tree values (`[Q1 - 3*IQR, Q3 + 3*IQR]`; `3` ~ strong, `1.5` ~ mild).
+  `color_trim_action = "clamp"` (default) keeps every tree but pins the gradient to
+  that robust range so the high-`coal_count` tail saturates at the top colour
+  instead of compressing the bulk into one shade; `"drop"` instead removes the
+  outlier trees from the overlay (and reports how many).
+- `tip_order = bb_order` pins the shared frame to the backbone's own tip order, so
+  the scaffold is crossing-free; gene-tree discordance then shows as spread of the
+  coloured cloud around that frame.
+- To use **all** 60k trees, set `n_sample <- nrow(df)` (slow; the figure becomes a
+  dense band). For `phylogram` branch-length scaling instead of the cladogram
+  frame, add `mode = "phylogram"`.
+- The same controls are available in the web app (`run_anansi_app()`): the
+  "Colour cloud by value" and palette selectors plus the "Explicit backbone"
+  field.
+```

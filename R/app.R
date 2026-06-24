@@ -84,7 +84,19 @@ build_densinet <- function(netset, params = list()) {
     tree_color         = p$tree_color %||% "steelblue",
     ret_color          = p$ret_color %||% "firebrick",
     consensus_color    = p$consensus_color %||% "black",
-    consensus_ret_color = p$consensus_ret_color %||% "darkred")
+    consensus_ret_color = p$consensus_ret_color %||% "darkred",
+    # --- gradient cloud + explicit backbone (unset falls through to defaults) ---
+    color_by           = .nz(p$color_by),
+    color_palette      = p$color_palette %||% "viridis",
+    color_direction    = p$color_direction %||% 1,
+    color_low          = p$color_low %||% "grey80",
+    color_high         = p$color_high %||% "firebrick",
+    color_legend       = .nz(p$color_legend),
+    color_trim         = .nz_num(p$color_trim),
+    color_trim_action  = p$color_trim_action %||% "clamp",
+    backbone           = .nz(p$backbone),
+    backbone_color     = p$backbone_color %||% "black",
+    backbone_ret_color = p$backbone_ret_color %||% "darkred")
 }
 
 #' Build a network set from extended-Newick strings

@@ -56,6 +56,24 @@ test_that("layout_netset shares tip y-positions across networks", {
   expect_equal(max(c(seg$x, seg$xend)), 1)
 })
 
+test_that("color_by attaches a per-network .value aligned by .net", {
+  nsv <- anansi_netset(list(na, nb), meta = data.frame(value = c(10, 20)))
+  seg <- layout_netset(nsv, method = "first", color_by = "value")
+  expect_true(".value" %in% names(seg))
+  # every segment of network i carries that network's value
+  by_net <- tapply(seg$.value, seg$.net, unique)
+  expect_equal(as.numeric(by_net), c(10, 20))
+})
+
+test_that("color_by validates the column exists and is numeric", {
+  nsv <- anansi_netset(list(na, nb),
+                       meta = data.frame(value = c(1, 2), label = c("x", "y")))
+  expect_error(layout_netset(nsv, method = "first", color_by = "missing"),
+               "not a metadata column")
+  expect_error(layout_netset(nsv, method = "first", color_by = "label"),
+               "must be numeric")
+})
+
 test_that("divergent (taxa_ok = FALSE) networks are dropped with a warning", {
   od <- parse_network("(((A:1,B:1):1,C:1):1,(D:1,E:1):1);")  # 5 taxa -> divergent
   mixed <- suppressWarnings(anansi_netset(list(na, nb, od)))
